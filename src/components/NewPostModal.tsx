@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Calendar, Image as ImageIcon, Type, Folder } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Client, Post, Batch } from '../types';
@@ -12,17 +12,22 @@ interface NewPostModalProps {
   batches?: Batch[];
   selectedClientId: string;
   post?: Post | null;
+  defaultDate?: string;
+  currentUser?: string;
 }
 
-export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], selectedClientId, post }: NewPostModalProps) {
+export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], selectedClientId, post, defaultDate, currentUser = 'Ana Silva' }: NewPostModalProps) {
   const { addToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [clientId, setClientId] = useState(selectedClientId);
   const [batchId, setBatchId] = useState<string>('');
   const [platform, setPlatform] = useState<'Instagram' | 'LinkedIn' | 'Facebook'>('Instagram');
-  const [date, setDate] = useState('2026-03-01');
+  const [date, setDate] = useState(defaultDate || new Date().toISOString().split('T')[0]);
   const [caption, setCaption] = useState('');
+  const [title, setTitle] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -32,20 +37,28 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
         setPlatform(post.platform);
         setDate(post.date);
         setCaption(post.caption);
+        setTitle(post.title || '');
         setImageUrl(post.imageUrl);
       } else {
         setClientId(selectedClientId);
         setBatchId('');
+        setTitle('');
         resetForm();
+        if (defaultDate) setDate(defaultDate);
       }
     }
-  }, [isOpen, selectedClientId, post]);
+  }, [isOpen, selectedClientId, post, defaultDate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!imageUrl) {
       addToast('Por favor, adicione uma imagem.', 'error');
+      return;
+    }
+
+    if (!caption.trim()) {
+      addToast('Por favor, escreva uma legenda.', 'error');
       return;
     }
 
@@ -57,19 +70,19 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
       date,
       caption,
       imageUrl,
-      status: post?.status || 'pending',
+      status: post?.status || 'copy_production',
       rating: post?.rating,
       feedback: post?.feedback,
-      title: post?.title || 'Novo Post',
-      version: post?.version || 1,
+      title: title.trim() || `Post ${platform} — ${new Date(date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}`,
+      version: post ? (post.version || 0) + 1 : 1,
       commentsCount: post?.commentsCount || 0,
       createdAt: post?.createdAt || new Date().toISOString(),
-      createdBy: post?.createdBy || 'Ana Silva', // Hardcoded for now as we don't have auth context here
+      createdBy: post?.createdBy || currentUser,
       history: post?.history || [
         { 
           id: Math.random().toString(36).substr(2, 9), 
           type: 'created', 
-          user: 'Ana Silva', 
+          user: currentUser, 
           timestamp: new Date().toISOString() 
         }
       ]
@@ -83,19 +96,45 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
   const resetForm = () => {
     setCaption('');
     setImageUrl('');
-    setDate('2026-03-01');
+    setTitle('');
+    setDate(defaultDate || new Date().toISOString().split('T')[0]);
     setPlatform('Instagram');
     setBatchId('');
   };
 
-  // Simulate file upload
+  const processFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      addToast('Por favor, selecione um arquivo de imagem.', 'error');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      addToast('Imagem muito grande. Máximo 10MB.', 'error');
+      return;
+    }
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImageUrl(e.target?.result as string);
+      setIsUploading(false);
+      addToast('Imagem carregada com sucesso!', 'success');
+    };
+    reader.onerror = () => {
+      setIsUploading(false);
+      addToast('Erro ao ler o arquivo.', 'error');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  };
+
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    // In a real app, we would handle the file here. 
-    // For demo, we'll just set a random image if they drop something
-    setImageUrl(`https://picsum.photos/seed/${Math.random()}/800/800`);
-    addToast('Imagem carregada com sucesso!', 'success');
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
   };
 
   return (
@@ -130,53 +169,83 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                 <form id="new-post-form" onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Left Column: Image Upload */}
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Mídia</label>
+                      
+                      {/* Hidden file input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                      />
+
                       <div
                         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                         onDragLeave={() => setIsDragging(false)}
                         onDrop={handleFileDrop}
+                        onClick={() => !imageUrl && fileInputRef.current?.click()}
                         className={`
-                          relative aspect-square rounded-xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center text-center p-6
-                          ${imageUrl ? 'border-transparent' : isDragging ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-gray-50 dark:hover:bg-gray-800'}
+                          relative aspect-square rounded-xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center text-center p-6 cursor-pointer
+                          ${imageUrl ? 'border-transparent cursor-default' : isDragging ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/50 dark:hover:bg-gray-800'}
                         `}
                       >
-                        {imageUrl ? (
+                        {isUploading ? (
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="w-10 h-10 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Carregando imagem...</p>
+                          </div>
+                        ) : imageUrl ? (
                           <div className="relative w-full h-full group">
                             <img src={imageUrl} alt="Preview" className="w-full h-full object-cover rounded-lg shadow-sm" />
-                            <button
-                              type="button"
-                              onClick={() => setImageUrl('')}
-                              className="absolute top-2 right-2 bg-white/90 dark:bg-gray-800/90 p-1.5 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-white dark:hover:bg-gray-800"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                                className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg mr-2 hover:bg-gray-50"
+                              >
+                                Trocar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setImageUrl(''); }}
+                                className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg hover:bg-red-600"
+                              >
+                                Remover
+                              </button>
+                            </div>
                           </div>
                         ) : (
-                          <div className="space-y-2 pointer-events-none">
-                            <div className="w-12 h-12 bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 rounded-full flex items-center justify-center mx-auto">
-                              <Upload className="w-6 h-6" />
+                          <div className="space-y-3 pointer-events-none">
+                            <div className="w-14 h-14 bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 rounded-2xl flex items-center justify-center mx-auto">
+                              <Upload className="w-7 h-7" />
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-white">Arraste e solte sua imagem</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">ou clique para gerar aleatoriamente</p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">Clique para selecionar</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">ou arraste e solte aqui</p>
+                              <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-2">PNG, JPG, WebP — Máx. 10MB</p>
                             </div>
                           </div>
-                        )}
-                        {/* Hidden click trigger for demo purposes */}
-                        {!imageUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setImageUrl(`https://picsum.photos/seed/${Math.random()}/800/800`)}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          />
                         )}
                       </div>
                     </div>
 
                     {/* Right Column: Details */}
-                    <div className="space-y-5">
-                      <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4">
+                      {/* Title */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Título <span className="text-gray-400 font-normal">(opcional)</span></label>
+                        <input
+                          type="text"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          placeholder="Ex: Lançamento Produto X"
+                          className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all text-sm dark:text-white"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Cliente</label>
                           <select
@@ -190,7 +259,7 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Lote (Opcional)</label>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Lote</label>
                           <div className="relative">
                             <select
                               value={batchId}
@@ -207,7 +276,7 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Plataforma</label>
                           <select
@@ -235,15 +304,18 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                       </div>
 
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Legenda</label>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                          Legenda <span className="text-red-400">*</span>
+                        </label>
                         <div className="relative">
                           <textarea
                             value={caption}
                             onChange={(e) => setCaption(e.target.value)}
                             placeholder="Escreva uma legenda incrível..."
+                            required
                             className="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all text-sm min-h-[120px] resize-none dark:text-white"
                           />
-                          <Type className="w-4 h-4 text-gray-400 dark:text-gray-500 absolute right-3 bottom-3" />
+                          <span className="absolute right-3 bottom-3 text-[10px] text-gray-400">{caption.length}</span>
                         </div>
                       </div>
                     </div>
@@ -251,22 +323,27 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                 </form>
               </div>
 
-              <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm border border-transparent hover:border-gray-200 dark:hover:border-gray-600 rounded-xl transition-all"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  form="new-post-form"
-                  className="px-5 py-2.5 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 shadow-lg shadow-sky-200 dark:shadow-sky-900/30 rounded-xl transition-all flex items-center gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  {post ? 'Salvar Alterações' : 'Publicar Post'}
-                </button>
+              <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex justify-between items-center gap-3">
+                {post && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">v{post.version} → v{(post.version || 0) + 1}</span>
+                )}
+                <div className="flex items-center gap-3 ml-auto">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 hover:shadow-sm border border-transparent hover:border-gray-200 dark:hover:border-gray-600 rounded-xl transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    form="new-post-form"
+                    className="px-5 py-2.5 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 shadow-lg shadow-sky-200 dark:shadow-sky-900/30 rounded-xl transition-all flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {post ? 'Salvar Alterações' : 'Criar Post'}
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>

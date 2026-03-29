@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Mail, Lock, ArrowRight, CheckCircle, Cloud } from 'lucide-react';
 import { motion } from 'motion/react';
 
+import { UserRole } from '../types';
+
 interface LoginViewProps {
-  onLogin: (role: 'agency' | 'client') => void;
+  onLogin: (role: UserRole) => void;
 }
 
 export function LoginView({ onLogin }: LoginViewProps) {
@@ -21,8 +23,8 @@ export function LoginView({ onLogin }: LoginViewProps) {
     setTimeout(() => {
       setIsLoading(false);
       if (email && password) {
-        // Simple demo logic: if email contains "client", log in as client, else agency
-        const role = email.toLowerCase().includes('client') ? 'client' : 'agency';
+      // Simple demo logic: if email contains "client", log in as client, else admin (agency)
+        const role: UserRole = email.toLowerCase().includes('client') ? 'client' : 'admin';
         onLogin(role);
       } else {
         setError('Por favor, preencha todos os campos.');
@@ -35,7 +37,7 @@ export function LoginView({ onLogin }: LoginViewProps) {
     // Simulate Google Login delay
     setTimeout(() => {
       setIsLoading(false);
-      onLogin('agency');
+      onLogin('admin');
     }, 1500);
   };
 
@@ -149,11 +151,8 @@ export function LoginView({ onLogin }: LoginViewProps) {
             </button>
           </div>
 
-          <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-            Não tem uma conta?{' '}
-            <a href="#" className="font-medium text-sky-600 hover:text-sky-500 dark:text-sky-400">
-              Criar conta
-            </a>
+          <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
+            Demo: use qualquer email + senha. Email com "client" entra como cliente.
           </p>
         </motion.div>
       </div>

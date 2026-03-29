@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { PostCard } from './components/PostCard';
+import { PostCardCompact } from './components/PostCardCompact';
 import { CalendarView } from './components/CalendarView';
 import { ReportsView } from './components/ReportsView';
 import { TeamView } from './components/TeamView';
@@ -12,14 +13,16 @@ import { LoginView } from './components/LoginView';
 import { DeleteConfirmationModal } from './components/DeleteConfirmationModal';
 import { PostDetailModal } from './components/PostDetailModal';
 import { ToastProvider, useToast } from './components/Toast';
-import { INITIAL_POSTS, CLIENTS, INITIAL_BATCHES } from './data/mockData';
+import { INITIAL_POSTS, CLIENTS, INITIAL_BATCHES, INITIAL_NOTIFICATIONS } from './data/mockData';
 import { Post, Client, Notification, Batch, PostStatus, UserRole } from './types';
 import { MOCK_USERS } from './data/mockData';
-import { Plus, Folder, Edit3, Trash2, ListFilter, LayoutGrid, Calendar, PieChart, Users, Bell, Settings, LogOut, ChevronDown, Share2, Menu, X, Sun, Moon, Cloud, Kanban, BarChart3, RotateCcw, Check } from 'lucide-react';
+import { Plus, Folder, Edit3, Trash2, ListFilter, LayoutGrid, Calendar, Users, Bell, Settings, ChevronDown, Share2, Menu, X, Sun, Moon, Cloud, Kanban, BarChart3, RotateCcw, Check, Palette, List, Grid } from 'lucide-react';
 import { cn } from './lib/utils';
 import { AnimatePresence, motion } from 'motion/react';
 
 // ... imports
+
+type View = 'feed' | 'calendar' | 'kanban' | 'reports' | 'team' | 'notifications' | 'settings';
 
 function AppContent({ 
   userRole, 
@@ -37,7 +40,7 @@ function AppContent({
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
   const [clients, setClients] = useState<Client[]>(CLIENTS);
   const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'changes_requested' | 'published'>('all');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -49,24 +52,50 @@ function AppContent({
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isClientMenuOpen, setIsClientMenuOpen] = useState(false);
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
+  const [selectedPostForDetail, setSelectedPostForDetail] = useState<Post | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [viewMonth, setViewMonth] = useState<string | null>(initialViewMonth || null);
+  const [calendarNewPostDate, setCalendarNewPostDate] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
   
-  const [darkMode, setDarkMode] = useState(false);
+  type Theme = 'default' | 'dark' | 'light';
+  const [theme, setTheme] = useState<Theme>('default');
 
   React.useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
+    // @custom-variant dark in index.css handles all dark: Tailwind classes
+    // via [data-theme="dark"] — no classList toggling needed
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const cycleTheme = () => {
+    setTheme(t => t === 'default' ? 'dark' : t === 'dark' ? 'light' : 'default');
+  };
+
+  const themeLabel: Record<Theme, string> = {
+    default: 'Padrão',
+    dark: 'Escuro',
+    light: 'Claro'
+  };
+
+  const themeIcon: Record<Theme, React.ReactNode> = {
+    default: <Palette className="w-4 h-4" />,
+    dark: <Moon className="w-4 h-4" />,
+    light: <Sun className="w-4 h-4" />
+  };
+
+  const themeNextLabel: Record<Theme, string> = {
+    default: 'Escuro',
+    dark: 'Claro',
+    light: 'Padrão'
+  };
   
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [postToDelete, setPostToDelete] = useState<string | null>(null);
-  const [selectedPostForDetail, setSelectedPostForDetail] = useState<Post | null>(null);
   
   const { addToast } = useToast();
+
+  const currentUser = MOCK_USERS.find(u => u.id === 'u1') || MOCK_USERS[0];
+  const isAgency = userRole !== 'client';
 
   // Check URL params on mount - Removed as it's handled in App component now
   
@@ -79,7 +108,7 @@ function AppContent({
           { 
             id: Math.random().toString(36).substr(2, 9), 
             type: 'comment', 
-            user: userRole === 'agency' ? 'Ana Silva' : 'Cliente Demo', 
+            user: isAgency ? currentUser.name : 'Cliente Demo', 
             timestamp: new Date().toISOString(),
             details: comment
           },
@@ -99,7 +128,7 @@ function AppContent({
           { 
             id: Math.random().toString(36).substr(2, 9), 
             type: 'status_change', 
-            user: userRole === 'agency' ? 'Ana Silva' : 'Cliente Demo', 
+            user: isAgency ? currentUser.name : 'Cliente Demo', 
             timestamp: new Date().toISOString(),
             details: `Moveu para ${newStatus.replace('_', ' ')}`
           },
@@ -326,12 +355,12 @@ function AppContent({
     if (post.clientId !== selectedClientId) return false;
 
     // Filter by Batch (Agency only)
-    if (userRole === 'agency' && selectedBatchId !== 'all') {
+    if (isAgency && selectedBatchId !== 'all') {
       if (post.batchId !== selectedBatchId) return false;
     }
 
     // Filter by Month (if in client mode and month is selected)
-    if (userRole === 'client' && viewMonth) {
+    if (!isAgency && viewMonth) {
       const postDate = new Date(post.date);
       const postMonth = `${postDate.getFullYear()}-${String(postDate.getMonth() + 1).padStart(2, '0')}`;
       if (postMonth !== viewMonth) return false;
@@ -395,7 +424,15 @@ function AppContent({
           {currentView === 'calendar' && (
             <CalendarView 
               posts={posts.filter(p => p.clientId === selectedClientId)} 
-              onPostClick={(postId) => handlePostNavigation(postId)}
+              onPostClick={(postId) => {
+                const post = posts.find(p => p.id === postId);
+                if (post) setSelectedPostForDetail(post);
+              }}
+              onDayClick={(date) => {
+                setCalendarNewPostDate(date);
+                setEditingPost(null);
+                setIsNewPostModalOpen(true);
+              }}
             />
           )}
           {currentView === 'kanban' && (
@@ -428,25 +465,36 @@ function AppContent({
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Configurações</h2>
               
               <div className="space-y-6">
-                <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Modo Escuro</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Alternar entre tema claro e escuro</p>
+                {/* Theme Selector */}
+                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Aparência</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Escolha o tema visual do sistema</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {(['default', 'dark', 'light'] as const).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setTheme(t)}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all ${
+                          theme === t
+                            ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-sky-300 hover:bg-sky-50/50 dark:hover:bg-sky-900/10'
+                        }`}
+                      >
+                        {/* Mini preview */}
+                        <div className={`w-full h-10 rounded-lg flex items-center gap-1 px-2 ${
+                          t === 'default' ? 'bg-gradient-to-r from-indigo-100 to-purple-100' :
+                          t === 'dark' ? 'bg-gray-800' : 'bg-white border border-gray-200'
+                        }`}>
+                          <div className={`w-2 h-2 rounded-full ${ t === 'dark' ? 'bg-sky-400' : 'bg-sky-500'}`} />
+                          <div className={`flex-1 h-1.5 rounded ${ t === 'dark' ? 'bg-gray-600' : 'bg-gray-200'}`} />
+                        </div>
+                        <span className={`text-xs font-medium ${ theme === t ? 'text-sky-600 dark:text-sky-400' : 'text-gray-600 dark:text-gray-300'}`}>
+                          {{'default': 'Padrão', 'dark': 'Escuro', 'light': 'Claro'}[t]}
+                        </span>
+                        {theme === t && <Check className="w-3 h-3 text-sky-500" />}
+                      </button>
+                    ))}
                   </div>
-                  <button
-                    onClick={() => setDarkMode(!darkMode)}
-                    className={`
-                      relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900
-                      ${darkMode ? 'bg-sky-600' : 'bg-gray-200 dark:bg-gray-700'}
-                    `}
-                  >
-                    <span
-                      className={`
-                        inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-                        ${darkMode ? 'translate-x-6' : 'translate-x-1'}
-                      `}
-                    />
-                  </button>
                 </div>
 
                 <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
@@ -458,6 +506,38 @@ function AppContent({
           )}
           {currentView === 'feed' && (
             <>
+              {/* Action Banner */}
+              {(() => {
+                const actionPosts = isAgency
+                  ? filteredPosts.filter(p => p.status === 'copy_changes' || p.status === 'design_changes')
+                  : filteredPosts.filter(p => p.status === 'copy_sent' || p.status === 'design_sent');
+                if (actionPosts.length === 0) return null;
+                return (
+                  <div className="mb-4 p-3 rounded-xl border border-orange-200 dark:border-orange-800/50 bg-orange-50/70 dark:bg-orange-900/10 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+                      <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">
+                        {isAgency
+                          ? `${actionPosts.length} post${actionPosts.length > 1 ? 's' : ''} aguardando sua revisão`
+                          : `${actionPosts.length} post${actionPosts.length > 1 ? 's' : ''} aguardando sua aprovação`
+                        }
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {actionPosts.slice(0, 3).map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => setSelectedPostForDetail(p)}
+                          className="text-xs font-medium px-2.5 py-1 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-800/40 transition-colors truncate max-w-[120px]"
+                        >
+                          {p.title || p.platform}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Intro */}
               <div className="mb-8">
                 <h2 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
@@ -467,7 +547,7 @@ function AppContent({
                   }
                 </h2>
                 <p className="text-gray-500 dark:text-gray-400 mt-2">
-                  {userRole === 'agency' 
+                  {isAgency 
                     ? <span>Gerencie o conteúdo para <span className="font-semibold text-sky-600 dark:text-sky-400">{currentClient.name}</span>.</span>
                     : <span>Revise e aprove o conteúdo planejado para sua marca.</span>
                   }
@@ -477,7 +557,7 @@ function AppContent({
               {/* Filters */}
               <div className="flex flex-col gap-6 mb-8">
                 {/* Batch Selector (Agency Only) */}
-                {userRole === 'agency' && (
+                {isAgency && (
                   <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm w-full sm:w-fit transition-colors">
                     <div className="hidden sm:flex items-center gap-2 px-3 text-gray-500 dark:text-gray-400 border-r border-gray-100 dark:border-gray-700">
                       <Folder className="w-4 h-4" />
@@ -565,12 +645,50 @@ function AppContent({
                       color="sky"
                     />
                   </div>
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center gap-1 p-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <button
+                      onClick={() => setViewMode('compact')}
+                      className={cn(
+                        "p-1.5 rounded-md transition-all",
+                        viewMode === 'compact'
+                          ? 'bg-sky-600 text-white shadow-sm'
+                          : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                      )}
+                      title="Visualização compacta"
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('full')}
+                      className={cn(
+                        "p-1.5 rounded-md transition-all",
+                        viewMode === 'full'
+                          ? 'bg-sky-600 text-white shadow-sm'
+                          : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                      )}
+                      title="Visualização completa"
+                    >
+                      <Grid className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Post Grid */}
-              <div className="space-y-6 pb-20">
+              <div className={cn("pb-20", viewMode === 'compact' ? 'space-y-2' : 'space-y-6')}>
                 {filteredPosts.length > 0 ? (
+                  viewMode === 'compact' ? (
+                    filteredPosts.map(post => (
+                      <PostCardCompact
+                        key={post.id}
+                        post={post}
+                        onClick={(p) => setSelectedPostForDetail(p)}
+                        userRole={userRole}
+                        highlighted={highlightedPostId === post.id}
+                      />
+                    ))
+                  ) : (
                   filteredPosts.map(post => (
                     <PostCard
                       key={post.id}
@@ -586,6 +704,7 @@ function AppContent({
                       highlighted={highlightedPostId === post.id}
                     />
                   ))
+                  )
                 ) : (
                   <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
                     <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -593,7 +712,7 @@ function AppContent({
                     </div>
                     <h3 className="text-lg font-medium text-gray-900">Nenhum post encontrado</h3>
                     <p className="text-gray-500 text-sm mt-1">Tente mudar o filtro selecionado ou adicione um novo post.</p>
-                    {userRole === 'agency' && (
+                    {isAgency && (
                       <button 
                         onClick={() => {
                           setEditingPost(null);
@@ -617,7 +736,7 @@ function AppContent({
   return (
     <div className="min-h-screen text-gray-900 dark:text-gray-100 font-sans selection:bg-sky-100 dark:selection:bg-sky-900 flex transition-colors duration-300">
       {/* Mobile FAB for New Post */}
-      {userRole === 'agency' && (
+      {isAgency && (
         <button
           onClick={() => {
             setEditingPost(null);
@@ -663,7 +782,7 @@ function AppContent({
             active={currentView === 'reports'} 
             onClick={() => setCurrentView('reports')}
           />
-          {userRole === 'agency' && (
+          {isAgency && (
             <>
               <NavItem 
                 icon={<Users className="w-5 h-5" />} 
@@ -683,7 +802,7 @@ function AppContent({
         </nav>
 
         <div className="p-4 border-t border-white/20 dark:border-gray-800/50">
-          {userRole === 'agency' && (
+          {isAgency && (
             <NavItem 
               icon={<Settings className="w-5 h-5" />} 
               label="Configurações" 
@@ -695,11 +814,11 @@ function AppContent({
           {/* Client Switcher */}
           <div className="mt-4 relative">
             <button 
-              onClick={() => userRole === 'agency' && setIsClientMenuOpen(!isClientMenuOpen)}
-              disabled={userRole === 'client'}
+              onClick={() => isAgency && setIsClientMenuOpen(!isClientMenuOpen)}
+              disabled={!isAgency}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/20 dark:border-gray-700/50 transition-all group backdrop-blur-sm",
-                userRole === 'agency' ? "hover:bg-white/50 dark:hover:bg-gray-800/50 cursor-pointer" : "opacity-75 cursor-default bg-white/30 dark:bg-gray-800/30"
+                userRole !== 'client' ? "hover:bg-white/50 dark:hover:bg-gray-800/50 cursor-pointer" : "opacity-75 cursor-default bg-white/30 dark:bg-gray-800/30"
               )}
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sky-100 to-sky-200 flex items-center justify-center text-xs font-bold text-sky-700 shadow-sm">
@@ -708,16 +827,16 @@ function AppContent({
               <div className="flex flex-col items-start flex-1 min-w-0">
                 <span className="text-sm font-medium text-gray-900 truncate w-full text-left">{currentClient.name}</span>
                 <span className="text-xs text-gray-500 truncate w-full text-left">
-                  {userRole === 'agency' ? 'Mudar cliente' : 'Visualizando como cliente'}
+                  {isAgency ? 'Mudar cliente' : 'Visualizando como cliente'}
                 </span>
               </div>
-              {userRole === 'agency' && (
+              {isAgency && (
                 <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-sky-500" />
               )}
             </button>
 
             <AnimatePresence>
-              {isClientMenuOpen && userRole === 'agency' && (
+              {isClientMenuOpen && isAgency && (
                 <>
                   <div 
                     className="fixed inset-0 z-10" 
@@ -829,7 +948,7 @@ function AppContent({
                   active={currentView === 'reports'} 
                   onClick={() => { setCurrentView('reports'); setSidebarOpen(false); }}
                 />
-                {userRole === 'agency' && (
+                {isAgency && (
                   <>
                     <NavItem 
                       icon={<Users className="w-5 h-5" />} 
@@ -849,7 +968,7 @@ function AppContent({
               </nav>
               
               <div className="p-4 border-t border-gray-100">
-                {userRole === 'agency' && (
+                {isAgency && (
                   <>
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Cliente Ativo</p>
@@ -915,14 +1034,14 @@ function AppContent({
             </div>
             
             <div className="hidden lg:block text-sm text-gray-500">
-              {userRole === 'agency' 
-                ? <>Gerenciando: <span className="font-medium text-gray-900">{currentClient.name}</span></>
-                : <>Visualizando como: <span className="font-medium text-gray-900">{currentClient.name}</span></>
+              {isAgency 
+                ? <>Gerenciando: <span className="font-medium text-gray-900 dark:text-gray-100">{currentClient.name}</span></>
+                : <>Visualizando como: <span className="font-medium text-gray-900 dark:text-gray-100">{currentClient.name}</span></>
               }
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
-              {userRole === 'agency' && (
+              {isAgency && (
                 <>
                   <button 
                     onClick={() => setIsShareModalOpen(true)}
@@ -958,12 +1077,28 @@ function AppContent({
               )}
               <button 
                 onClick={handleReset}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors hidden sm:flex"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors hidden sm:flex"
                 title="Resetar Demo"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
-              <div className="w-px h-6 bg-gray-200 mx-1 hidden sm:block"></div>
+              {/* Theme Switcher */}
+              <button
+                onClick={cycleTheme}
+                title={`Tema atual: ${themeLabel[theme]} — Próximo: ${themeNextLabel[theme]}`}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all
+                  text-gray-600 dark:text-gray-300
+                  bg-white/70 dark:bg-gray-800/70
+                  border-gray-200 dark:border-gray-700
+                  hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400
+                  hover:bg-sky-50 dark:hover:bg-sky-900/20
+                  backdrop-blur-sm shadow-sm
+                "
+              >
+                {themeIcon[theme]}
+                <span className="hidden sm:inline">{themeLabel[theme]}</span>
+              </button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
               <div className="flex items-center gap-2 text-sm text-gray-500 hidden sm:flex">
                 <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
                 {pendingCount} pendentes
@@ -974,13 +1109,13 @@ function AppContent({
                 className="flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-700 p-1.5 rounded-lg transition-colors"
               >
                 <div className="w-8 h-8 bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400 rounded-full flex items-center justify-center font-bold text-xs">
-                  {userRole === 'agency' ? 'AS' : 'CD'}
+                  {currentUser.avatar}
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-xs font-medium text-gray-900 dark:text-gray-100">
-                    {userRole === 'agency' ? 'Ana Silva' : 'Cliente Demo'}
+                    {currentUser.name}
                   </p>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{userRole}</p>
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{isAgency ? 'Agency' : 'Cliente'}</p>
                 </div>
               </button>
             </div>
@@ -1042,12 +1177,15 @@ function AppContent({
         onClose={() => {
           setIsNewPostModalOpen(false);
           setEditingPost(null);
+          setCalendarNewPostDate(null);
         }}
         onSave={handleSavePost}
         clients={clients}
         batches={batches}
         selectedClientId={selectedClientId}
         post={editingPost}
+        defaultDate={calendarNewPostDate || undefined}
+        currentUser={currentUser.name}
       />
 
       {/* New Client Modal */}
@@ -1157,7 +1295,7 @@ function FilterButton({
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState<'agency' | 'client'>('agency');
+  const [userRole, setUserRole] = useState<UserRole>('admin');
   const [initialClientId, setInitialClientId] = useState<string | null>(null);
   const [initialViewMonth, setInitialViewMonth] = useState<string | null>(null);
 
@@ -1178,7 +1316,7 @@ export default function App() {
     }
   }, []);
 
-  const handleLogin = (role: 'agency' | 'client') => {
+  const handleLogin = (role: UserRole) => {
     setUserRole(role);
     setIsAuthenticated(true);
   };
@@ -1189,7 +1327,7 @@ export default function App() {
     setInitialViewMonth(null);
   };
 
-  const handleRoleChange = (role: 'agency' | 'client') => {
+  const handleRoleChange = (role: UserRole) => {
     setUserRole(role);
   };
 

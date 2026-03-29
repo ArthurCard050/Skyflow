@@ -1,4 +1,4 @@
-import { Post, Client, Batch, UserRole } from '../types';
+import { Post, Client, Batch, UserRole, Notification } from '../types';
 
 export const CLIENTS: Client[] = [
   { id: '1', name: 'TechStart Solutions', avatar: 'TS', email: 'contact@techstart.com' },
@@ -134,4 +134,43 @@ export const MOCK_USERS = [
   { id: 'u3', name: 'Carlos Design', role: 'designer' as UserRole, avatar: 'CD' },
   { id: 'u4', name: 'Daniel Scheduler', role: 'scheduler' as UserRole, avatar: 'DS' },
   { id: 'u5', name: 'Cliente Demo', role: 'client' as UserRole, avatar: 'CL' },
+];
+
+export const INITIAL_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'n1',
+    clientId: '2',
+    postId: '4',
+    type: 'approved',
+    message: 'GreenLife Organics aprovou o post "Promo Dia das Mães" com 5 estrelas! ⭐⭐⭐⭐⭐',
+    date: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2h ago
+    read: false,
+  },
+  {
+    id: 'n2',
+    clientId: '1',
+    postId: '6',
+    type: 'changes_requested',
+    message: 'TechStart Solutions solicitou ajustes no post "Teaser Novas Features": "O tom está muito formal, precisamos de algo mais jovem."',
+    date: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5h ago
+    read: false,
+  },
+  {
+    id: 'n3',
+    clientId: '3',
+    postId: '5',
+    type: 'status_change',
+    message: 'Post "Drop Collection Teaser" foi marcado como Publicado no Instagram. 🚀',
+    date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+    read: true,
+  },
+  {
+    id: 'n4',
+    clientId: '2',
+    postId: '3',
+    type: 'mention',
+    message: 'Carlos Design comentou no post "Linha Facial Natureza": "Preciso do briefing visual para prosseguir."',
+    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+    read: true,
+  },
 ];

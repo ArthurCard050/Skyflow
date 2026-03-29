@@ -95,7 +95,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                <Maximize2 className="text-white w-6 h-6" />
              </div>
           </div>
-          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-sm text-gray-700 border border-gray-100">
+          <div className="absolute top-3 left-3 bg-white/95 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-sm text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700">
             <PlatformIcon className="w-3.5 h-3.5" />
             {post.platform}
           </div>
@@ -183,7 +183,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   </button>
                   <button
                     onClick={handleRejectClick}
-                    className="flex-1 bg-white border border-gray-200 text-gray-700 px-6 py-3 rounded-2xl text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                    className="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-6 py-3 rounded-2xl text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                   >
                     <MessageSquare className="w-4 h-4" />
                     Solicitar Ajuste

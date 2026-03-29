@@ -8,9 +8,10 @@ import { cn } from '../lib/utils';
 interface CalendarViewProps {
   posts: Post[];
   onPostClick: (postId: string) => void;
+  onDayClick?: (date: string) => void;
 }
 
-export function CalendarView({ posts, onPostClick }: CalendarViewProps) {
+export function CalendarView({ posts, onPostClick, onDayClick }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const firstDayOfMonth = startOfMonth(currentDate);
@@ -29,7 +30,7 @@ export function CalendarView({ posts, onPostClick }: CalendarViewProps) {
 
   return (
     <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl rounded-2xl shadow-sm border border-white/40 dark:border-gray-700/50 overflow-hidden transition-colors">
-      <div className="p-6 flex items-center justify-between border-b border-white/20 dark:border-gray-700/50">
+      <div className="p-6 flex items-center justify-between border-b border-gray-200 dark:border-gray-700/50">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
           {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
         </h2>
@@ -46,7 +47,7 @@ export function CalendarView({ posts, onPostClick }: CalendarViewProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-7 border-b border-white/20 dark:border-gray-700/50 bg-white/30 dark:bg-gray-900/30">
+      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/30">
         {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
           <div key={day} className="py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             {day}
@@ -56,7 +57,7 @@ export function CalendarView({ posts, onPostClick }: CalendarViewProps) {
 
       <div className="grid grid-cols-7 auto-rows-[120px]">
         {startPadding.map((_, i) => (
-          <div key={`padding-${i}`} className="border-b border-r border-white/20 dark:border-gray-700/50 bg-gray-50/10 dark:bg-gray-900/10" />
+          <div key={`padding-${i}`} className="border-b border-r border-gray-200 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-900/10" />
         ))}
         
         {days.map(day => {
@@ -67,9 +68,11 @@ export function CalendarView({ posts, onPostClick }: CalendarViewProps) {
             <div 
               key={day.toString()} 
               className={cn(
-                "border-b border-r border-white/20 dark:border-gray-700/50 p-2 transition-colors hover:bg-white/40 dark:hover:bg-gray-800/40 group relative",
+                "border-b border-r border-gray-200 dark:border-gray-700/50 p-2 transition-colors hover:bg-white/40 dark:hover:bg-gray-800/40 group relative",
                 isToday && "bg-sky-50/30 dark:bg-sky-900/10"
               )}
+              onClick={() => onDayClick && onDayClick(format(day, 'yyyy-MM-dd'))}
+              style={{ cursor: onDayClick ? 'pointer' : 'default' }}
             >
               <span className={cn(
                 "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1",
@@ -107,7 +110,11 @@ export function CalendarView({ posts, onPostClick }: CalendarViewProps) {
               </div>
               
               {/* Add button on hover */}
-              <button className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-400 dark:text-gray-500 transition-all">
+              <button
+                onClick={(e) => { e.stopPropagation(); onDayClick && onDayClick(format(day, 'yyyy-MM-dd')); }}
+                className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 p-1 hover:bg-sky-100 dark:hover:bg-sky-900/30 rounded text-sky-400 dark:text-sky-500 transition-all"
+                title="Adicionar post neste dia"
+              >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
             </div>
