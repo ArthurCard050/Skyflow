@@ -1,15 +1,18 @@
 import { Post, Client, Batch, UserRole, Notification } from '../types';
+import { VILA_CARIOCA_POSTS } from './vilaCariocaPosts';
 
 export const CLIENTS: Client[] = [
   { id: '1', name: 'TechStart Solutions', avatar: 'TS', email: 'contact@techstart.com' },
   { id: '2', name: 'GreenLife Organics', avatar: 'GL', email: 'hello@greenlife.com' },
   { id: '3', name: 'Urban Style', avatar: 'US', email: 'marketing@urbanstyle.com' },
+  { id: '4', name: 'Vila Carioca Açaí', avatar: 'VC', email: 'contato@vilacarioca.com' },
 ];
 
 export const INITIAL_BATCHES: Batch[] = [
   { id: 'b1', name: 'Campanha Verão 2026', clientId: '1', createdAt: '2026-01-15' },
   { id: 'b2', name: 'Lançamento App v2', clientId: '1', createdAt: '2026-02-01' },
   { id: 'b3', name: 'Dia das Mães', clientId: '2', createdAt: '2026-02-10' },
+  { id: 'b4', name: 'Calendário Abril 2025', clientId: '4', createdAt: '2025-03-29' },
 ];
 
 export const INITIAL_POSTS: Post[] = [
@@ -125,7 +128,8 @@ export const INITIAL_POSTS: Post[] = [
       { id: 'h10', type: 'created', user: 'Ana Silva', timestamp: '2026-02-26T14:00:00Z' },
       { id: 'h11', type: 'status_change', user: 'Cliente Demo', timestamp: '2026-02-27T15:00:00Z', details: 'Solicitou ajustes: Tom muito formal' }
     ]
-  }
+  },
+  ...VILA_CARIOCA_POSTS
 ];
 
 export const MOCK_USERS = [
