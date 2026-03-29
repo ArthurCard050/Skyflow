@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Check, X, Star, MessageSquare, Instagram, Facebook, Linkedin, ChevronDown, ChevronUp, Maximize2, Clock, AlertCircle, Edit2, Trash2 } from 'lucide-react';
-import { Post, PostStatus } from '../types';
+import { Post, PostStatus, MediaItem } from '../types';
 import { cn } from '../lib/utils';
+import { MediaCarousel } from './MediaCarousel';
 
 interface PostCardProps {
   post: Post;
@@ -80,22 +81,13 @@ export const PostCard: React.FC<PostCardProps> = ({
     >
       <div className="p-6 grid grid-cols-1 md:grid-cols-[320px_1fr] gap-8">
         {/* Image Section */}
-        <div 
-          className="relative group aspect-square md:aspect-[4/5] md:h-auto rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-900 cursor-zoom-in shadow-inner"
-          onClick={() => onImageClick(post.imageUrl)}
-        >
-          <img
-            src={post.imageUrl}
-            alt="Post content"
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-            referrerPolicy="no-referrer"
+        <div className="relative group w-full">
+          <MediaCarousel
+            media={post.media}
+            onExpand={() => onImageClick(post.media?.[0]?.url || '')}
+            expandable={true}
           />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
-             <div className="bg-white/20 backdrop-blur-md p-3 rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-               <Maximize2 className="text-white w-6 h-6" />
-             </div>
-          </div>
-          <div className="absolute top-3 left-3 bg-white/95 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-sm text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700">
+          <div className="absolute top-3 left-3 bg-white/95 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-sm text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700 pointer-events-none z-10">
             <PlatformIcon className="w-3.5 h-3.5" />
             {post.platform}
           </div>
@@ -166,7 +158,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <div className="mt-8 pt-6 border-t border-gray-200/50 dark:border-gray-700/50">
             <AnimatePresence mode="wait">
               {/* Only show actions if user is client and post is pending approval */}
-              {userRole === 'client' && (post.status === 'copy_sent' || post.status === 'design_sent') && actionState === 'idle' && (
+              {userRole === 'client' && !post.status.includes('approved') && !['published', 'scheduled'].includes(post.status) && actionState === 'idle' && (
                 <motion.div
                   key="actions"
                   initial={{ opacity: 0 }}

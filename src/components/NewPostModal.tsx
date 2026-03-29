@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, Calendar, Image as ImageIcon, Type, Folder } from 'lucide-react';
+import { X, Upload, Calendar, Image as ImageIcon, Type, Folder, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Client, Post, Batch } from '../types';
+import { Client, Post, Batch, MediaItem, MediaType, MediaFormat } from '../types';
 import { useToast } from './Toast';
+import { MediaCarousel } from './MediaCarousel';
 
 interface NewPostModalProps {
   isOpen: boolean;
@@ -25,9 +26,10 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
   const [date, setDate] = useState(defaultDate || new Date().toISOString().split('T')[0]);
   const [caption, setCaption] = useState('');
   const [title, setTitle] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [media, setMedia] = useState<MediaItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [postFormat, setPostFormat] = useState<MediaFormat>('square');
 
   useEffect(() => {
     if (isOpen) {
@@ -38,7 +40,8 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
         setDate(post.date);
         setCaption(post.caption);
         setTitle(post.title || '');
-        setImageUrl(post.imageUrl);
+        setMedia(post.media || []);
+        setPostFormat(post.media?.[0]?.format || 'square');
       } else {
         setClientId(selectedClientId);
         setBatchId('');
@@ -52,8 +55,8 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!imageUrl) {
-      addToast('Por favor, adicione uma imagem.', 'error');
+    if (media.length === 0) {
+      addToast('Por favor, adicione pelo menos uma mídia.', 'error');
       return;
     }
 
@@ -69,7 +72,7 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
       platform,
       date,
       caption,
-      imageUrl,
+      media,
       status: post?.status || 'copy_production',
       rating: post?.rating,
       feedback: post?.feedback,
@@ -95,46 +98,81 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
 
   const resetForm = () => {
     setCaption('');
-    setImageUrl('');
+    setMedia([]);
     setTitle('');
     setDate(defaultDate || new Date().toISOString().split('T')[0]);
     setPlatform('Instagram');
     setBatchId('');
+    setPostFormat('square');
   };
 
-  const processFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      addToast('Por favor, selecione um arquivo de imagem.', 'error');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      addToast('Imagem muito grande. Máximo 10MB.', 'error');
-      return;
-    }
-    setIsUploading(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImageUrl(e.target?.result as string);
-      setIsUploading(false);
-      addToast('Imagem carregada com sucesso!', 'success');
-    };
-    reader.onerror = () => {
-      setIsUploading(false);
-      addToast('Erro ao ler o arquivo.', 'error');
-    };
-    reader.readAsDataURL(file);
+  const processFiles = (fileList: FileList | File[]) => {
+    const files = Array.from(fileList).slice(0, 10); // max 10
+    
+    let uploadingCount = 0;
+    
+    files.forEach(file => {
+      const isVideo = file.type.startsWith('video/');
+      const isImage = file.type.startsWith('image/');
+      
+      if (!isVideo && !isImage) {
+        addToast(`O arquivo ${file.name} não é suportado.`, 'error');
+        return;
+      }
+      
+      if (file.size > 50 * 1024 * 1024) { // 50MB max
+        addToast(`O arquivo ${file.name} excede o limite (50MB).`, 'error');
+        return;
+      }
+
+      setIsUploading(true);
+      uploadingCount++;
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        const url = e.target?.result as string;
+        const newMedia: MediaItem = {
+          id: 'm_' + Math.random().toString(36).substr(2,9),
+          url,
+          type: isVideo ? 'video' : 'image',
+          format: postFormat
+        };
+        
+        setMedia(prev => [...prev, newMedia]);
+        
+        uploadingCount--;
+        if (uploadingCount === 0) {
+          setIsUploading(false);
+          addToast(files.length > 1 ? 'Mídias carregadas com sucesso!' : 'Mídia carregada!', 'success');
+        }
+      };
+
+      reader.onerror = () => {
+        uploadingCount--;
+        if (uploadingCount === 0) setIsUploading(false);
+        addToast(`Erro ao carregar ${file.name}.`, 'error');
+      };
+
+      reader.readAsDataURL(file);
+    });
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) processFile(file);
+    if (e.target.files?.length) {
+      processFiles(e.target.files);
+    }
   };
 
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) processFile(file);
+    if (e.dataTransfer.files?.length) {
+      processFiles(e.dataTransfer.files);
+    }
+  };
+
+  const removeMedia = (indexToRemove: number) => {
+    setMedia(prev => prev.filter((_, i) => i !== indexToRemove));
   };
 
   return (
@@ -172,11 +210,11 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                     <div className="space-y-3">
                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Mídia</label>
                       
-                      {/* Hidden file input */}
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/*,video/*"
+                        multiple
                         onChange={handleFileInputChange}
                         className="hidden"
                       />
@@ -185,37 +223,58 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                         onDragLeave={() => setIsDragging(false)}
                         onDrop={handleFileDrop}
-                        onClick={() => !imageUrl && fileInputRef.current?.click()}
+                        onClick={() => media.length === 0 && fileInputRef.current?.click()}
                         className={`
-                          relative aspect-square rounded-xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center text-center p-6 cursor-pointer
-                          ${imageUrl ? 'border-transparent cursor-default' : isDragging ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/50 dark:hover:bg-gray-800'}
+                          relative aspect-square md:aspect-[4/5] rounded-xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center text-center p-6
+                          ${media.length > 0 ? 'border-transparent p-0 overflow-hidden' : isDragging ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-sky-400 dark:hover:border-sky-500 hover:bg-sky-50/50 dark:hover:bg-gray-800 cursor-pointer'}
                         `}
                       >
                         {isUploading ? (
                           <div className="flex flex-col items-center gap-3">
                             <div className="w-10 h-10 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Carregando imagem...</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Processando mídia...</p>
                           </div>
-                        ) : imageUrl ? (
-                          <div className="relative w-full h-full group">
-                            <img src={imageUrl} alt="Preview" className="w-full h-full object-cover rounded-lg shadow-sm" />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                                className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg mr-2 hover:bg-gray-50"
-                              >
-                                Trocar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setImageUrl(''); }}
-                                className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium shadow-lg hover:bg-red-600"
-                              >
-                                Remover
-                              </button>
-                            </div>
-                          </div>
+                        ) : media.length > 0 ? (
+                           <div className="relative w-full h-full group">
+                             <MediaCarousel media={media} className="w-full h-full" />
+                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex flex-col gap-2 items-center justify-center opacity-0 group-hover:opacity-100 p-4">
+                               <button
+                                 type="button"
+                                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                                 className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-xl text-sm font-medium shadow-lg hover:scale-105 transition-transform w-32"
+                               >
+                                 Adicionar
+                               </button>
+                               <button
+                                 type="button"
+                                 onClick={(e) => { e.stopPropagation(); setMedia([]); }}
+                                 className="bg-red-500 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-lg hover:scale-105 transition-transform w-32"
+                               >
+                                 Remover Tudo
+                               </button>
+                             </div>
+                             {/* Mini gallery overlay at bottom */}
+                             {media.length > 0 && (
+                               <div className="absolute bottom-4 left-0 w-full px-4 overflow-x-auto custom-scrollbar flex gap-2 pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 {media.map((m, idx) => (
+                                   <div key={m.id} className="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden border-2 border-white/50 group/mini">
+                                      {m.type === 'video' ? (
+                                        <video src={m.url} className="w-full h-full object-cover grayscale opacity-50" />
+                                      ) : (
+                                        <img src={m.url} className="w-full h-full object-cover" />
+                                      )}
+                                      <button 
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); removeMedia(idx); }}
+                                        className="absolute inset-0 bg-red-500/80 flex items-center justify-center opacity-0 group-hover/mini:opacity-100 transition-opacity"
+                                      >
+                                        <Trash2 className="w-4 h-4 text-white" />
+                                      </button>
+                                   </div>
+                                 ))}
+                               </div>
+                             )}
+                           </div>
                         ) : (
                           <div className="space-y-3 pointer-events-none">
                             <div className="w-14 h-14 bg-sky-100 dark:bg-sky-900/40 text-sky-600 dark:text-sky-400 rounded-2xl flex items-center justify-center mx-auto">
@@ -223,8 +282,8 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                             </div>
                             <div>
                               <p className="text-sm font-semibold text-gray-900 dark:text-white">Clique para selecionar</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">ou arraste e solte aqui</p>
-                              <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-2">PNG, JPG, WebP — Máx. 10MB</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">ou arraste vídeos/imagens aqui</p>
+                              <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-2">Vídeos & Imagens — Suporta Múltiplos</p>
                             </div>
                           </div>
                         )}
@@ -287,6 +346,23 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                             <option value="Instagram">Instagram</option>
                             <option value="LinkedIn">LinkedIn</option>
                             <option value="Facebook">Facebook</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Formato (Tag)</label>
+                          <select
+                            value={postFormat}
+                            onChange={(e) => {
+                              const newFormat = e.target.value as MediaFormat;
+                              setPostFormat(newFormat);
+                              setMedia(prev => prev.map(m => ({ ...m, format: newFormat })));
+                            }}
+                            className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all text-sm dark:text-white"
+                          >
+                            <option value="square">Feed Quadrado (1:1)</option>
+                            <option value="portrait">Feed Retrato (4:5)</option>
+                            <option value="story">Story / Reels (9:16)</option>
+                            <option value="landscape">Paisagem (16:9)</option>
                           </select>
                         </div>
                         <div>

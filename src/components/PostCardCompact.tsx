@@ -1,12 +1,13 @@
 import React from 'react';
-import { Post, UserRole } from '../types';
+import { Post } from '../types';
 import { cn } from '../lib/utils';
-import { Clock, MessageSquare, Eye } from 'lucide-react';
+import { Clock, MessageSquare, Eye, Layers, Play } from 'lucide-react';
+import { MediaItem } from '../types';
 
 interface PostCardCompactProps {
   post: Post;
   onClick: (post: Post) => void;
-  userRole: UserRole;
+  userRole: 'admin' | 'client' | 'copywriter' | 'designer' | 'scheduler';
   highlighted?: boolean;
 }
 
@@ -56,12 +57,33 @@ export const PostCardCompact: React.FC<PostCardCompactProps> = ({ post, onClick,
     >
       {/* Thumbnail */}
       <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-900">
-        <img
-          src={post.imageUrl}
-          alt={post.title || 'Post'}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-          referrerPolicy="no-referrer"
-        />
+        {post.media && post.media[0] && (
+          post.media[0].type === 'video' ? (
+            <video
+              src={post.media[0].url}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+              muted
+              playsInline
+            />
+          ) : (
+            <img
+              src={post.media[0].url}
+              alt={post.title || 'Post'}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+              referrerPolicy="no-referrer"
+            />
+          )
+        )}
+        {post.media && post.media.length > 1 && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+            <Layers className="w-4 h-4 text-white drop-shadow-md" />
+          </div>
+        )}
+        {post.media && post.media.length === 1 && post.media[0].type === 'video' && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+            <Play className="w-4 h-4 text-white drop-shadow-md ml-0.5" />
+          </div>
+        )}
         {/* Platform dot */}
         <div className={cn(
           "absolute bottom-0.5 right-0.5 w-2.5 h-2.5 rounded-full border border-white",

@@ -35,11 +35,21 @@ export interface ActionHistory {
   details?: string;
 }
 
+export type MediaType = 'image' | 'video';
+export type MediaFormat = 'square' | 'portrait' | 'story' | 'landscape';
+
+export interface MediaItem {
+  id: string;
+  url: string;
+  type: MediaType;
+  format?: MediaFormat;
+}
+
 export interface Post {
   id: string;
   clientId: string;
   batchId?: string;
-  imageUrl: string;
+  media: MediaItem[];
   caption: string;
   status: PostStatus;
   rating?: number; // 1-5 stars, only if approved

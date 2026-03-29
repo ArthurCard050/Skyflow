@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { canEditPost, getNextStatus } from '../services/permissionService';
-import { UserRole, PostStatus, Post, ActionHistory } from '../types';
-import { X, Check, MessageSquare, Clock, History, AlertCircle, Edit2, Trash2, Lock, Save } from 'lucide-react';
+import { canEditPost, canMovePost } from '../services/permissionService';
+import { UserRole, PostStatus, Post, ActionHistory, MediaItem } from '../types';
+import { X, Check, MessageSquare, Clock, History, AlertCircle, Edit2, Lock, Save, ChevronDown, ArrowRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { MediaCarousel } from './MediaCarousel';
 
 interface PostDetailModalProps {
   isOpen: boolean;
@@ -17,6 +18,69 @@ interface PostDetailModalProps {
   onAddComment: (id: string, comment: string) => void;
   onEdit?: (post: Post) => void;
   onStatusChange?: (id: string, status: PostStatus) => void;
+}
+
+const STATUS_OPTIONS: { group: string; color: string; items: { id: PostStatus; label: string }[] }[] = [
+  {
+    group: '📝 Copy',
+    color: 'text-blue-600',
+    items: [
+      { id: 'copy_production', label: 'Produção' },
+      { id: 'copy_sent', label: 'Enviado' },
+      { id: 'copy_changes', label: 'Ajustes' },
+      { id: 'copy_approved', label: 'Aprovado' },
+    ]
+  },
+  {
+    group: '🎨 Design',
+    color: 'text-purple-600',
+    items: [
+      { id: 'design_production', label: 'Produção' },
+      { id: 'design_sent', label: 'Enviado' },
+      { id: 'design_changes', label: 'Ajustes' },
+      { id: 'design_approved', label: 'Aprovado' },
+    ]
+  },
+  {
+    group: '📅 Publicação',
+    color: 'text-sky-600',
+    items: [
+      { id: 'scheduling', label: 'Agendamento' },
+      { id: 'scheduled', label: 'Agendado' },
+      { id: 'published', label: 'Publicado' },
+    ]
+  },
+];
+
+const STATUS_LABEL: Record<PostStatus, string> = {
+  copy_production: 'Copy: Produção',
+  copy_sent: 'Copy: Enviado',
+  copy_changes: 'Copy: Ajustes',
+  copy_approved: 'Copy: Aprovado',
+  design_production: 'Design: Produção',
+  design_sent: 'Design: Enviado',
+  design_changes: 'Design: Ajustes',
+  design_approved: 'Design: Aprovado',
+  scheduling: 'Agendamento',
+  scheduled: 'Agendado',
+  published: 'Publicado',
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  approved: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800',
+  changes: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800',
+  production: 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
+  sent: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800',
+  published: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800',
+  scheduling: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-300 dark:border-cyan-800',
+  scheduled: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-800',
+};
+
+function getStatusColorClass(status: PostStatus): string {
+  for (const [key, cls] of Object.entries(STATUS_COLOR)) {
+    if (status === key || status.includes(key)) return cls;
+  }
+  return STATUS_COLOR.production;
 }
 
 export function PostDetailModal({ 
@@ -35,21 +99,23 @@ export function PostDetailModal({
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState('');
   const [actionState, setActionState] = useState<'idle' | 'approving' | 'rejecting'>('idle');
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
 
   if (!isOpen || !post) return null;
 
+  const isAgency = userRole !== 'client';
+  const isLocked = post.status === 'published';
+  const canEdit = canEditPost(userRole, post);
+  const canApprove = (userRole === 'client' && !isLocked && !post.status.includes('approved'));
+
   const handleApprove = () => {
-    // If client, use the callback which might just set status or add history
-    // If internal user, we might want to move to next stage
     if (userRole === 'client') {
-       if (rating > 0) {
+      if (rating > 0) {
         onApprove(post.id, rating);
         setActionState('idle');
         onClose();
       }
     } else {
-      // Internal approval logic (e.g. Copywriter approving copy to send to design)
-      // For now, we'll just use the same callback but maybe without rating
       onApprove(post.id, 0);
       setActionState('idle');
       onClose();
@@ -71,11 +137,16 @@ export function PostDetailModal({
     }
   };
 
-  const isLocked = post.status === 'published';
-  const canEdit = canEditPost(userRole, post);
-  
-  // Determine if current user can approve/reject based on status
-  const canApprove = (userRole === 'client' && (post.status === 'copy_sent' || post.status === 'design_sent'));
+  const handleStatusSelect = (newStatus: PostStatus) => {
+    if (newStatus !== post.status && onStatusChange) {
+      if (canMovePost(userRole, post.status, newStatus)) {
+        onStatusChange(post.id, newStatus);
+        setStatusDropdownOpen(false);
+      }
+    } else {
+      setStatusDropdownOpen(false);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -100,22 +171,79 @@ export function PostDetailModal({
               <h2 className="text-xl font-bold text-gray-900 dark:text-white truncate max-w-md">
                 {post.title || 'Detalhes do Post'}
               </h2>
-              <span className={cn(
-                "px-2.5 py-0.5 rounded-full text-xs font-semibold border flex items-center gap-1.5 uppercase",
-                // Simplified status colors for brevity, can be expanded
-                post.status.includes('approved') && "bg-emerald-50 text-emerald-700 border-emerald-200",
-                post.status.includes('changes') && "bg-orange-50 text-orange-700 border-orange-200",
-                post.status.includes('production') && "bg-gray-50 text-gray-700 border-gray-200",
-                post.status.includes('sent') && "bg-blue-50 text-blue-700 border-blue-200",
-                post.status === 'published' && "bg-green-50 text-green-700 border-green-200"
-              )}>
-                <span className={cn("w-1.5 h-1.5 rounded-full", 
-                   post.status.includes('approved') ? "bg-emerald-500" :
-                   post.status.includes('changes') ? "bg-orange-500" :
-                   post.status === 'published' ? "bg-green-500" : "bg-blue-500"
-                )} />
-                {post.status.replace('_', ' ')}
-              </span>
+
+              {/* Status Badge / Dropdown */}
+              {isAgency && !isLocked ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+                    className={cn(
+                      "px-3 py-1 rounded-full text-xs font-semibold border flex items-center gap-1.5 uppercase transition-all hover:shadow-md cursor-pointer",
+                      getStatusColorClass(post.status)
+                    )}
+                  >
+                    <span className={cn("w-1.5 h-1.5 rounded-full", 
+                       post.status.includes('approved') ? "bg-emerald-500" :
+                       post.status.includes('changes') ? "bg-orange-500" :
+                       post.status === 'published' ? "bg-green-500" : "bg-blue-500"
+                    )} />
+                    {STATUS_LABEL[post.status]}
+                    <ChevronDown className={cn("w-3 h-3 transition-transform", statusDropdownOpen && "rotate-180")} />
+                  </button>
+
+                  {statusDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-20" onClick={() => setStatusDropdownOpen(false)} />
+                      <div className="absolute top-full mt-2 left-0 z-30 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 max-h-72 overflow-y-auto">
+                        {STATUS_OPTIONS.map((group) => (
+                          <div key={group.group}>
+                            <div className={cn("px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider", group.color)}>
+                              {group.group}
+                            </div>
+                            {group.items.map((item) => {
+                              const isCurrent = post.status === item.id;
+                              const allowed = canMovePost(userRole, post.status, item.id);
+                              return (
+                                <button
+                                  key={item.id}
+                                  onClick={() => handleStatusSelect(item.id)}
+                                  disabled={!allowed && !isCurrent}
+                                  className={cn(
+                                    "w-full text-left px-4 py-2 text-sm flex items-center gap-2 transition-colors",
+                                    isCurrent
+                                      ? "bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 font-semibold"
+                                      : allowed
+                                      ? "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                      : "text-gray-300 dark:text-gray-600 cursor-not-allowed"
+                                  )}
+                                >
+                                  {isCurrent && <Check className="w-3.5 h-3.5 text-sky-600" />}
+                                  {!isCurrent && allowed && <ArrowRight className="w-3.5 h-3.5 opacity-40" />}
+                                  {!isCurrent && !allowed && <Lock className="w-3 h-3 opacity-30" />}
+                                  {item.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <span className={cn(
+                  "px-2.5 py-0.5 rounded-full text-xs font-semibold border flex items-center gap-1.5 uppercase",
+                  getStatusColorClass(post.status)
+                )}>
+                  <span className={cn("w-1.5 h-1.5 rounded-full", 
+                     post.status.includes('approved') ? "bg-emerald-500" :
+                     post.status.includes('changes') ? "bg-orange-500" :
+                     post.status === 'published' ? "bg-green-500" : "bg-blue-500"
+                  )} />
+                  {STATUS_LABEL[post.status]}
+                </span>
+              )}
+
               {isLocked && <Lock className="w-4 h-4 text-gray-400" />}
             </div>
             <button 
@@ -128,16 +256,10 @@ export function PostDetailModal({
 
           <div className="flex flex-col md:flex-row h-full overflow-hidden">
             {/* Left: Preview */}
-            <div className="w-full md:w-1/2 bg-gray-50 dark:bg-black/20 p-6 flex items-center justify-center overflow-y-auto custom-scrollbar border-r border-gray-100 dark:border-gray-800">
-              <div className="max-w-sm w-full space-y-4">
-                <div className="aspect-square rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 relative group">
-                  <img 
-                    src={post.imageUrl} 
-                    alt="Preview" 
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+            <div className="w-full md:w-1/2 bg-gray-50 dark:bg-black/20 p-6 flex justify-center overflow-y-auto custom-scrollbar border-r border-gray-100 dark:border-gray-800">
+              <div className="max-w-sm w-full space-y-4 h-fit my-auto">
+                <div className="rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700 relative group">
+                  <MediaCarousel media={post.media} expandable={false} />
                 </div>
                 
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
@@ -224,8 +346,8 @@ export function PostDetailModal({
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    {!isLocked && userRole === 'client' && (
+                    {/* Client Actions: Approve / Request Changes */}
+                    {!isLocked && userRole === 'client' && canApprove && (
                       <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-800">
                         {actionState === 'idle' ? (
                           <div className="flex gap-3">
@@ -253,8 +375,8 @@ export function PostDetailModal({
                                   key={star}
                                   onClick={() => setRating(star)}
                                   className={cn(
-                                    "p-1 transition-transform hover:scale-110",
-                                    star <= rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
+                                    "p-1 transition-transform hover:scale-110 text-2xl",
+                                    star <= rating ? "text-yellow-400" : "text-gray-300"
                                   )}
                                 >
                                   ★
@@ -306,11 +428,12 @@ export function PostDetailModal({
                       </div>
                     )}
 
-                    {userRole === 'agency' && !isLocked && (
+                    {/* Agency Actions: Edit */}
+                    {isAgency && !isLocked && (
                       <div className="flex gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
                         <button
                           onClick={() => onEdit && onEdit(post)}
-                          className="flex-1 bg-sky-50 text-sky-700 border border-sky-200 px-4 py-2.5 rounded-xl font-medium hover:bg-sky-100 transition-colors flex items-center justify-center gap-2"
+                          className="flex-1 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 px-4 py-2.5 rounded-xl font-medium hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors flex items-center justify-center gap-2"
                         >
                           <Edit2 className="w-4 h-4" />
                           Editar Post

@@ -168,8 +168,10 @@ function AppContent({
       let details = 'Aprovado';
 
       if (userRole === 'client') {
-        if (post.status === 'copy_sent') newStatus = 'copy_approved';
-        if (post.status === 'design_sent') newStatus = 'design_approved';
+        if (post.status.includes('copy')) newStatus = 'copy_approved';
+        else if (post.status.includes('design')) newStatus = 'design_approved';
+        else if (post.status === 'scheduling') newStatus = 'scheduled';
+        else newStatus = 'copy_approved'; // fallback
         details = `Aprovado pelo cliente (Nota: ${rating})`;
       } else {
         // Internal approval logic
@@ -221,8 +223,9 @@ function AppContent({
 
       let newStatus = post.status;
       if (userRole === 'client') {
-        if (post.status === 'copy_sent') newStatus = 'copy_changes';
-        if (post.status === 'design_sent') newStatus = 'design_changes';
+        if (post.status.includes('copy')) newStatus = 'copy_changes';
+        else if (post.status.includes('design')) newStatus = 'design_changes';
+        else newStatus = 'copy_changes';
       }
 
       return {
@@ -428,11 +431,11 @@ function AppContent({
                 const post = posts.find(p => p.id === postId);
                 if (post) setSelectedPostForDetail(post);
               }}
-              onDayClick={(date) => {
+              onDayClick={isAgency ? (date) => {
                 setCalendarNewPostDate(date);
                 setEditingPost(null);
                 setIsNewPostModalOpen(true);
-              }}
+              } : undefined}
             />
           )}
           {currentView === 'kanban' && (
@@ -770,20 +773,20 @@ function AppContent({
             active={currentView === 'calendar'} 
             onClick={() => setCurrentView('calendar')}
           />
-          <NavItem 
-            icon={<Kanban className="w-5 h-5" />} 
-            label="Quadro" 
-            active={currentView === 'kanban'} 
-            onClick={() => setCurrentView('kanban')}
-          />
-          <NavItem 
-            icon={<BarChart3 className="w-5 h-5" />} 
-            label="Relatórios" 
-            active={currentView === 'reports'} 
-            onClick={() => setCurrentView('reports')}
-          />
           {isAgency && (
             <>
+              <NavItem 
+                icon={<Kanban className="w-5 h-5" />} 
+                label="Quadro" 
+                active={currentView === 'kanban'} 
+                onClick={() => setCurrentView('kanban')}
+              />
+              <NavItem 
+                icon={<BarChart3 className="w-5 h-5" />} 
+                label="Relatórios" 
+                active={currentView === 'reports'} 
+                onClick={() => setCurrentView('reports')}
+              />
               <NavItem 
                 icon={<Users className="w-5 h-5" />} 
                 label="Equipe" 
@@ -936,20 +939,20 @@ function AppContent({
                   active={currentView === 'calendar'} 
                   onClick={() => { setCurrentView('calendar'); setSidebarOpen(false); }}
                 />
-                <NavItem 
-                  icon={<Kanban className="w-5 h-5" />} 
-                  label="Quadro" 
-                  active={currentView === 'kanban'} 
-                  onClick={() => { setCurrentView('kanban'); setSidebarOpen(false); }}
-                />
-                <NavItem 
-                  icon={<BarChart3 className="w-5 h-5" />} 
-                  label="Relatórios" 
-                  active={currentView === 'reports'} 
-                  onClick={() => { setCurrentView('reports'); setSidebarOpen(false); }}
-                />
                 {isAgency && (
                   <>
+                    <NavItem 
+                      icon={<Kanban className="w-5 h-5" />} 
+                      label="Quadro" 
+                      active={currentView === 'kanban'} 
+                      onClick={() => { setCurrentView('kanban'); setSidebarOpen(false); }}
+                    />
+                    <NavItem 
+                      icon={<BarChart3 className="w-5 h-5" />} 
+                      label="Relatórios" 
+                      active={currentView === 'reports'} 
+                      onClick={() => { setCurrentView('reports'); setSidebarOpen(false); }}
+                    />
                     <NavItem 
                       icon={<Users className="w-5 h-5" />} 
                       label="Equipe" 
@@ -1075,29 +1078,33 @@ function AppContent({
                   </button>
                 </>
               )}
-              <button 
-                onClick={handleReset}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors hidden sm:flex"
-                title="Resetar Demo"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-              {/* Theme Switcher */}
-              <button
-                onClick={cycleTheme}
-                title={`Tema atual: ${themeLabel[theme]} — Próximo: ${themeNextLabel[theme]}`}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all
-                  text-gray-600 dark:text-gray-300
-                  bg-white/70 dark:bg-gray-800/70
-                  border-gray-200 dark:border-gray-700
-                  hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400
-                  hover:bg-sky-50 dark:hover:bg-sky-900/20
-                  backdrop-blur-sm shadow-sm
-                "
-              >
-                {themeIcon[theme]}
-                <span className="hidden sm:inline">{themeLabel[theme]}</span>
-              </button>
+              {isAgency && (
+                <>
+                  <button 
+                    onClick={handleReset}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors hidden sm:flex"
+                    title="Resetar Demo"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                  {/* Theme Switcher */}
+                  <button
+                    onClick={cycleTheme}
+                    title={`Tema atual: ${themeLabel[theme]} — Próximo: ${themeNextLabel[theme]}`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all
+                      text-gray-600 dark:text-gray-300
+                      bg-white/70 dark:bg-gray-800/70
+                      border-gray-200 dark:border-gray-700
+                      hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400
+                      hover:bg-sky-50 dark:hover:bg-sky-900/20
+                      backdrop-blur-sm shadow-sm
+                    "
+                  >
+                    {themeIcon[theme]}
+                    <span className="hidden sm:inline">{themeLabel[theme]}</span>
+                  </button>
+                </>
+              )}
               <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
               <div className="flex items-center gap-2 text-sm text-gray-500 hidden sm:flex">
                 <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
@@ -1316,9 +1323,12 @@ export default function App() {
     }
   }, []);
 
-  const handleLogin = (role: UserRole) => {
+  const handleLogin = (role: UserRole, clientId?: string) => {
     setUserRole(role);
     setIsAuthenticated(true);
+    if (clientId) {
+      setInitialClientId(clientId);
+    }
   };
 
   const handleLogout = () => {

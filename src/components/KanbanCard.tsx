@@ -5,6 +5,7 @@ import { Post } from '../types';
 import { Clock, MessageSquare, Lock, AlertTriangle, Zap } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
+import { MediaCarousel } from './MediaCarousel';
 
 interface KanbanCardProps {
   post: Post;
