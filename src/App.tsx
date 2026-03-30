@@ -364,9 +364,16 @@ function AppContent({
 
   const confirmDeletePost = () => {
     if (postToDelete) {
+      const backup = [...posts];
       setPosts(prevPosts => prevPosts.filter(p => p.id !== postToDelete));
-      addToast('Post excluído com sucesso.', 'success');
-      dbService.deletePost(postToDelete).catch(console.error);
+      addToast('Excluindo post...', 'info');
+      dbService.deletePost(postToDelete).then(() => {
+        addToast('Post excluído com sucesso.', 'success');
+      }).catch(err => {
+        console.error(err);
+        addToast(`Erro ao excluir post: ${err.message}`, 'error');
+        setPosts(backup);
+      });
       setPostToDelete(null);
     }
   };
@@ -1371,6 +1378,11 @@ function AppContent({
         post={editingPost}
         defaultDate={calendarNewPostDate || undefined}
         currentUser={currentUser.name}
+        onDelete={(id) => {
+          setIsNewPostModalOpen(false);
+          setPostToDelete(id);
+          setIsDeleteModalOpen(true);
+        }}
       />
 
       {/* New Client Modal */}

@@ -16,9 +16,10 @@ interface NewPostModalProps {
   post?: Post | null;
   defaultDate?: string;
   currentUser?: string;
+  onDelete?: (id: string) => void;
 }
 
-export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], selectedClientId, post, defaultDate, currentUser = 'Ana Silva' }: NewPostModalProps) {
+export function NewPostModal({ isOpen, onClose, onSave, onDelete, clients, batches = [], selectedClientId, post, defaultDate, currentUser = 'Ana Silva' }: NewPostModalProps) {
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [clientId, setClientId] = useState(selectedClientId);
@@ -461,6 +462,16 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                   <span className="text-xs text-gray-400 dark:text-gray-500">v{post.version} → v{(post.version || 0) + 1}</span>
                 )}
                 <div className="flex items-center gap-3 ml-auto">
+                  {post && onDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(post.id)}
+                      className="px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border border-transparent rounded-xl transition-all flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Excluir
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={onClose}
