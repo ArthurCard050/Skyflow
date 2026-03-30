@@ -190,8 +190,9 @@ function AppContent({
       return;
     }
 
+    const optimisticId = Math.random().toString(36).substr(2, 9);
     const newClient: Client = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: optimisticId,
       name,
       email,
       avatar: name.substring(0, 2).toUpperCase()
@@ -200,7 +201,17 @@ function AppContent({
     setClients([...clients, newClient]);
     setSelectedClientId(newClient.id);
     setIsNewClientModalOpen(false);
-    addToast(`Cliente ${name} adicionado com sucesso!`, 'success');
+    addToast(`Cliente ${name} criacão inicializada...`, 'info');
+
+    // Executa no DB em Background
+    dbService.upsertClient({ name, email, avatar: newClient.avatar }).then(realClient => {
+      setClients(prev => prev.map(c => c.id === optimisticId ? realClient : c));
+      setSelectedClientId(realClient.id);
+      addToast(`Cliente ${name} sincronizado com sucesso no banco!`, 'success');
+    }).catch(err => {
+      console.error(err);
+      addToast('Erro ao salvar cliente no banco.', 'error');
+    });
   };
 
   const handleApprove = (id: string, rating: number) => {
@@ -272,7 +283,7 @@ function AppContent({
         if (pst.status === 'design_production') nextStatus = 'design_sent';
       }
       const approvedAt = nextStatus.includes('approved') ? new Date().toISOString() : undefined;
-      dbService.updatePostStatus(id, nextStatus, approvedAt).catch(console.error);
+      dbService.upsertPost({ ...pst, status: nextStatus, approvedAt, rating: rating > 0 ? rating : pst.rating }).catch(console.error);
       const acts = userRole === 'client' ? `Aprovado pelo cliente (Nota: ${rating})` : `Aprovado internamente por ${userRole}`;
       dbService.addHistory(id, 'approved', currentUser.id, acts).catch(console.error);
     }
@@ -332,7 +343,7 @@ function AppContent({
         else if (pst.status.includes('design')) nextStatus = 'design_changes';
         else nextStatus = 'copy_changes';
       }
-      dbService.updatePostStatus(id, nextStatus).catch(console.error);
+      dbService.upsertPost({ ...pst, status: nextStatus, feedback }).catch(console.error);
       dbService.addHistory(id, 'status_change', currentUser.id, `Solicitou ajustes: ${feedback}`).catch(console.error);
     }
   };
@@ -371,8 +382,19 @@ function AppContent({
       };
       setBatches(prevBatches => [...prevBatches, newBatch]);
       setSelectedBatchId(newBatch.id);
-      addToast(`Lote "${name}" criado com sucesso!`, 'success');
-      supabase.from('batches').insert({ id: newBatch.id, name, client_id: selectedClientId }).then(({error}) => error && console.error(error));
+      addToast(`Lote "${name}" gerado, sincronizando...`, 'info');
+      
+      // Send without ID so Postgres handles UUID generation natively
+      supabase.from('batches').insert({ name, client_id: selectedClientId }).select().single().then(({data, error}) => {
+        if (error) {
+          console.error('Erro ao criar lote:', error);
+          addToast('Erro ao sincronizar lote.', 'error');
+        } else if (data) {
+          setBatches(prev => prev.map(b => b.id === newBatch.id ? { id: data.id, name: data.name, clientId: data.client_id, createdAt: data.created_at } : b));
+          setSelectedBatchId(data.id);
+          addToast('Lote salvo no servidor!', 'success');
+        }
+      });
     }
   };
 
