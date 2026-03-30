@@ -11,7 +11,7 @@ export type PostStatus =
   | 'scheduled' 
   | 'published';
 
-export type UserRole = 'admin' | 'copywriter' | 'designer' | 'scheduler' | 'client';
+export type UserRole = 'admin' | 'copywriter' | 'designer' | 'social_media' | 'client';
 
 export interface TeamMember {
   id: string;
@@ -19,6 +19,23 @@ export interface TeamMember {
   role: UserRole;
   avatar: string;
   email?: string;
+  phone?: string;
+  // DB fields
+  memberId?: string; // profiles.id
+  ownerId?: string;
+}
+
+export interface TeamMemberRecord {
+  id: string;         // team_members.id
+  ownerId: string;
+  memberId: string;
+  role: UserRole;
+  clientId?: string;
+  createdAt: string;
+  // joined from profiles
+  name: string;
+  email: string;
+  avatar: string;
   phone?: string;
 }
 
@@ -63,21 +80,16 @@ export interface Post {
   media: MediaItem[];
   caption: string;
   status: PostStatus;
-  rating?: number; // 1-5 stars, only if approved
-  feedback?: string; // Only if changes_requested
-  date: string; // Scheduled date
+  rating?: number;
+  feedback?: string;
+  date: string;
   platform: 'Instagram' | 'LinkedIn' | 'Facebook';
-  
-  // New fields for SaaS functionality
   format?: MediaFormat;
   title?: string;
-  
-  // Production Briefing Fields
   contentPillar?: string;
   visualDirection?: string;
   videoScript?: string;
   cta?: string;
-  
   version: number;
   commentsCount: number;
   createdAt: string;
@@ -94,4 +106,28 @@ export interface Notification {
   message: string;
   date: string;
   read: boolean;
+}
+
+export interface BriefingComment {
+  id: string;
+  briefingId: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface Briefing {
+  id: string;
+  clientId: string;
+  ownerId: string;
+  title: string;
+  content: Record<string, any>; // Tiptap JSON
+  createdBy?: string;
+  createdByName?: string;
+  updatedBy?: string;
+  updatedAt: string;
+  createdAt: string;
+  comments?: BriefingComment[];
 }

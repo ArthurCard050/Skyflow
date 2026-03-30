@@ -13,32 +13,28 @@ import { LoginView } from './components/LoginView';
 import { DeleteConfirmationModal } from './components/DeleteConfirmationModal';
 import { PostDetailModal } from './components/PostDetailModal';
 import { AIImportModal } from './components/AIImportModal';
-import { UserSettingsModal } from './components/UserSettingsModal';
+import { MyAccountView } from './components/MyAccountView';
+import { BriefingView } from './components/BriefingView';
 import { ToastProvider, useToast } from './components/Toast';
-import { INITIAL_POSTS, CLIENTS, INITIAL_BATCHES, INITIAL_NOTIFICATIONS } from './data/mockData';
 import { Post, Client, Notification, Batch, PostStatus, UserRole } from './types';
-import { MOCK_USERS } from './data/mockData';
-import { Plus, Folder, Edit3, Trash2, ListFilter, LayoutGrid, Calendar, Users, Bell, Settings, ChevronDown, Share2, Menu, X, Sun, Moon, Cloud, Kanban, BarChart3, RotateCcw, Check, Palette, List, Grid, LogOut } from 'lucide-react';
+import { ROLE_PERMISSIONS, ROLE_LABELS } from './config/roleConfig';
+import { Plus, Folder, Edit3, Trash2, ListFilter, LayoutGrid, Calendar, Users, Bell, Settings, ChevronDown, Share2, Menu, X, Sun, Moon, Cloud, Kanban, BarChart3, Check, Palette, List, Grid, LogOut, FileText, UserCircle } from 'lucide-react';
 import { cn } from './lib/utils';
 import { AnimatePresence, motion } from 'motion/react';
 import { useAuth } from './contexts/AuthContext';
 import { dbService } from './services/db';
 import { supabase } from './lib/supabase';
 
-// ... imports
-
-type View = 'feed' | 'calendar' | 'kanban' | 'reports' | 'team' | 'notifications' | 'settings';
+type View = 'feed' | 'calendar' | 'kanban' | 'reports' | 'team' | 'notifications' | 'settings' | 'account' | 'briefing';
 
 function AppContent({ 
   userRole, 
   onLogout,
-  onRoleChange,
   initialClientId,
   initialViewMonth
 }: { 
   userRole: UserRole, 
   onLogout: () => void,
-  onRoleChange: (role: UserRole) => void,
   initialClientId?: string | null,
   initialViewMonth?: string | null
 }) {
@@ -51,7 +47,7 @@ function AppContent({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<View>('feed');
-  const [selectedClientId, setSelectedClientId] = useState(initialClientId || CLIENTS[0].id);
+  const [selectedClientId, setSelectedClientId] = useState(initialClientId || '');
   const [selectedBatchId, setSelectedBatchId] = useState<string>('all');
   const [isNewPostModalOpen, setIsNewPostModalOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
@@ -134,7 +130,9 @@ function AppContent({
   const { addToast } = useToast();
 
   const { profile } = useAuth();
-  const currentUser = profile || { id: 'u1', name: 'Sistema', role: 'admin' as UserRole, avatar: 'S' };
+  const currentUser = profile || { id: 'u1', name: 'Sistema', role: 'admin' as UserRole, avatar: 'S', ownerId: 'u1', email: '' };
+  const ownerId = profile?.ownerId || profile?.id || '';
+  const permissions = ROLE_PERMISSIONS[userRole];
   const isAgency = userRole !== 'client';
 
   // Check URL params on mount - Removed as it's handled in App component now
@@ -182,7 +180,7 @@ function AppContent({
     dbService.addHistory(postId, 'status_change', currentUser.id, `Moveu para ${newStatus.replace('_', ' ')}`).catch(console.error);
   };
 
-  const currentClient = clients.find(c => c.id === selectedClientId) || clients[0] || { id: 'empty', name: 'Sem Cliente', avatar: '?' };
+  const currentClient: Client = clients.find(c => c.id === selectedClientId) || clients[0] || { id: 'empty', name: 'Sem Cliente', avatar: '?', email: '' };
 
   const handleAddClient = (name: string, email: string) => {
     if (clients.length >= 20) {
@@ -204,7 +202,7 @@ function AppContent({
     addToast(`Cliente ${name} criacão inicializada...`, 'info');
 
     // Executa no DB em Background
-    dbService.upsertClient({ name, email, avatar: newClient.avatar }).then(realClient => {
+    dbService.upsertClient({ name, email, avatar: newClient.avatar, ownerId }).then(realClient => {
       setClients(prev => prev.map(c => c.id === optimisticId ? realClient : c));
       setSelectedClientId(realClient.id);
       addToast(`Cliente ${name} salvo no banco!`, 'success');
@@ -283,7 +281,7 @@ function AppContent({
         if (pst.status === 'design_production') nextStatus = 'design_sent';
       }
       const approvedAt = nextStatus.includes('approved') ? new Date().toISOString() : undefined;
-      dbService.upsertPost({ ...pst, status: nextStatus, approvedAt, rating: rating > 0 ? rating : pst.rating }).catch(console.error);
+      dbService.upsertPost({ ...pst, status: nextStatus, approvedAt, rating: rating > 0 ? rating : pst.rating, ownerId }).catch(console.error);
       const acts = userRole === 'client' ? `Aprovado pelo cliente (Nota: ${rating})` : `Aprovado internamente por ${userRole}`;
       dbService.addHistory(id, 'approved', currentUser.id, acts).catch(console.error);
     }
@@ -343,7 +341,7 @@ function AppContent({
         else if (pst.status.includes('design')) nextStatus = 'design_changes';
         else nextStatus = 'copy_changes';
       }
-      dbService.upsertPost({ ...pst, status: nextStatus, feedback }).catch(console.error);
+      dbService.upsertPost({ ...pst, status: nextStatus, feedback, ownerId }).catch(console.error);
       dbService.addHistory(id, 'status_change', currentUser.id, `Solicitou ajustes: ${feedback}`).catch(console.error);
     }
   };
@@ -381,8 +379,9 @@ function AppContent({
   const handleCreateBatch = () => {
     const name = window.prompt('Nome do novo lote (ex: Maio 2026):');
     if (name) {
+      const optimisticId = Math.random().toString(36).substr(2, 9);
       const newBatch: Batch = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: optimisticId,
         name,
         clientId: selectedClientId,
         createdAt: new Date().toISOString()
@@ -390,17 +389,13 @@ function AppContent({
       setBatches(prevBatches => [...prevBatches, newBatch]);
       setSelectedBatchId(newBatch.id);
       addToast(`Lote "${name}" gerado, sincronizando...`, 'info');
-      
-      // Send without ID so Postgres handles UUID generation natively
-      supabase.from('batches').insert({ name, client_id: selectedClientId }).select().single().then(({data, error}) => {
-        if (error) {
-          console.error('Erro ao criar lote:', error);
-          addToast('Erro ao sincronizar lote.', 'error');
-        } else if (data) {
-          setBatches(prev => prev.map(b => b.id === newBatch.id ? { id: data.id, name: data.name, clientId: data.client_id, createdAt: data.created_at } : b));
-          setSelectedBatchId(data.id);
-          addToast('Lote salvo no servidor!', 'success');
-        }
+      dbService.createBatch(name, selectedClientId, ownerId).then(realBatch => {
+        setBatches(prev => prev.map(b => b.id === optimisticId ? realBatch : b));
+        setSelectedBatchId(realBatch.id);
+        addToast('Lote salvo no servidor!', 'success');
+      }).catch(err => {
+        console.error('Erro ao criar lote:', err);
+        addToast('Erro ao sincronizar lote.', 'error');
       });
     }
   };
@@ -408,12 +403,11 @@ function AppContent({
   const handleRenameBatch = (batchId: string) => {
     const batch = batches.find(b => b.id === batchId);
     if (!batch) return;
-    
     const newName = window.prompt('Novo nome do lote:', batch.name);
     if (newName && newName !== batch.name) {
       setBatches(prevBatches => prevBatches.map(b => b.id === batchId ? { ...b, name: newName } : b));
       addToast('Lote renomeado com sucesso!', 'success');
-      supabase.from('batches').update({ name: newName }).eq('id', batchId).then(({error}) => error && console.error(error));
+      dbService.updateBatch(batchId, newName).catch(console.error);
     }
   };
 
@@ -421,20 +415,13 @@ function AppContent({
     if (confirm('Tem certeza que deseja excluir este lote? Todos os posts associados perderão a referência ao lote.')) {
       setBatches(prevBatches => prevBatches.filter(b => b.id !== batchId));
       setPosts(prevPosts => prevPosts.map(p => p.batchId === batchId ? { ...p, batchId: undefined } : p));
-      if (selectedBatchId === batchId) {
-        setSelectedBatchId('all');
-      }
+      if (selectedBatchId === batchId) setSelectedBatchId('all');
       addToast('Lote excluído com sucesso.', 'success');
-      supabase.from('batches').delete().eq('id', batchId).then(({error}) => error && console.error(error));
+      dbService.deleteBatch(batchId).catch(console.error);
     }
   };
 
-  const handleReset = () => {
-    if (confirm('Deseja resetar todas as alterações?')) {
-      setPosts(INITIAL_POSTS);
-      addToast('Dados resetados para o estado inicial.', 'info');
-    }
-  };
+  // Reset removed — data is real/persistent
 
   const handleSavePost = (savedPost: Post) => {
     if (editingPost) {
@@ -453,7 +440,7 @@ function AppContent({
         addToast('Novo post adicionado ao feed.', 'success');
       }
     }
-    dbService.upsertPost(savedPost).catch(err => {
+    dbService.upsertPost({ ...savedPost, ownerId }).catch(err => {
       console.error(err);
       addToast(`Erro DB: ${err.message || 'Falha ao salvar post'}`, 'error');
     });
@@ -564,7 +551,11 @@ function AppContent({
               batches={batches.filter(b => b.clientId === selectedClientId)}
             />
           )}
-          {currentView === 'team' && <TeamView />}
+          {currentView === 'team' && permissions.canManageTeam && <TeamView />}
+          {currentView === 'account' && <MyAccountView />}
+          {currentView === 'briefing' && (
+            <BriefingView selectedClientId={selectedClientId} clients={clients} />
+          )}
           {currentView === 'notifications' && (
             <NotificationsView 
               notifications={notifications}
@@ -799,7 +790,7 @@ function AppContent({
                         key={post.id}
                         post={post}
                         onClick={(p) => setSelectedPostForDetail(p)}
-                        userRole={userRole}
+                        userRole={userRole as any}
                         highlighted={highlightedPostId === post.id}
                       />
                     ))
@@ -815,7 +806,7 @@ function AppContent({
                         onEdit={handleEditPost}
                         onMarkAsPublished={handleMarkAsPublished}
                         onDelete={handleDeletePost}
-                        userRole={userRole}
+                        userRole={userRole as any}
                         highlighted={highlightedPostId === post.id}
                       />
                     </div>
@@ -882,57 +873,29 @@ function AppContent({
         </div>
         
         <nav className="flex-1 p-4 space-y-1">
-          <NavItem 
-            icon={<LayoutGrid className="w-5 h-5" />} 
-            label="Feed de Aprovação" 
-            active={currentView === 'feed'} 
-            onClick={() => setCurrentView('feed')}
-          />
-          <NavItem 
-            icon={<Calendar className="w-5 h-5" />} 
-            label="Calendário" 
-            active={currentView === 'calendar'} 
-            onClick={() => setCurrentView('calendar')}
-          />
-          {isAgency && (
-            <>
-              <NavItem 
-                icon={<Kanban className="w-5 h-5" />} 
-                label="Quadro" 
-                active={currentView === 'kanban'} 
-                onClick={() => setCurrentView('kanban')}
-              />
-              <NavItem 
-                icon={<BarChart3 className="w-5 h-5" />} 
-                label="Relatórios" 
-                active={currentView === 'reports'} 
-                onClick={() => setCurrentView('reports')}
-              />
-              <NavItem 
-                icon={<Users className="w-5 h-5" />} 
-                label="Equipe" 
-                active={currentView === 'team'} 
-                onClick={() => setCurrentView('team')}
-              />
-              <NavItem 
-                icon={<Bell className="w-5 h-5" />} 
-                label="Notificações" 
-                active={currentView === 'notifications'} 
-                onClick={() => setCurrentView('notifications')}
-                badge={unreadNotifications > 0 ? unreadNotifications : undefined}
-              />
-            </>
+          <NavItem icon={<LayoutGrid className="w-5 h-5" />} label="Feed" active={currentView === 'feed'} onClick={() => setCurrentView('feed')} />
+          <NavItem icon={<Calendar className="w-5 h-5" />} label="Calendário" active={currentView === 'calendar'} onClick={() => setCurrentView('calendar')} />
+          {permissions.views.includes('kanban') && (
+            <NavItem icon={<Kanban className="w-5 h-5" />} label="Quadro" active={currentView === 'kanban'} onClick={() => setCurrentView('kanban')} />
           )}
+          {permissions.views.includes('briefing') && (
+            <NavItem icon={<FileText className="w-5 h-5" />} label="Briefing" active={currentView === 'briefing'} onClick={() => setCurrentView('briefing')} />
+          )}
+          {permissions.views.includes('reports') && (
+            <NavItem icon={<BarChart3 className="w-5 h-5" />} label="Relatórios" active={currentView === 'reports'} onClick={() => setCurrentView('reports')} />
+          )}
+          {permissions.views.includes('team') && (
+            <NavItem icon={<Users className="w-5 h-5" />} label="Equipe" active={currentView === 'team'} onClick={() => setCurrentView('team')} />
+          )}
+          {permissions.views.includes('notifications') && (
+            <NavItem icon={<Bell className="w-5 h-5" />} label="Notificações" active={currentView === 'notifications'} onClick={() => setCurrentView('notifications')} badge={unreadNotifications > 0 ? unreadNotifications : undefined} />
+          )}
+          <NavItem icon={<UserCircle className="w-5 h-5" />} label="Minha Conta" active={currentView === 'account'} onClick={() => setCurrentView('account')} />
         </nav>
 
         <div className="p-4 border-t border-white/20 dark:border-gray-800/50">
-          {isAgency && (
-            <NavItem 
-              icon={<Settings className="w-5 h-5" />} 
-              label="Configurações" 
-              active={currentView === 'settings'} 
-              onClick={() => setCurrentView('settings')}
-            />
+          {userRole === 'admin' && (
+            <NavItem icon={<Settings className="w-5 h-5" />} label="Configurações" active={currentView === 'settings'} onClick={() => setCurrentView('settings')} />
           )}
           
           {/* Client Switcher */}
@@ -1048,47 +1011,14 @@ function AppContent({
                 </button>
               </div>
               <nav className="flex-1 p-4 space-y-1">
-                <NavItem 
-                  icon={<LayoutGrid className="w-5 h-5" />} 
-                  label="Feed de Aprovação" 
-                  active={currentView === 'feed'} 
-                  onClick={() => { setCurrentView('feed'); setSidebarOpen(false); }}
-                />
-                <NavItem 
-                  icon={<Calendar className="w-5 h-5" />} 
-                  label="Calendário" 
-                  active={currentView === 'calendar'} 
-                  onClick={() => { setCurrentView('calendar'); setSidebarOpen(false); }}
-                />
-                {isAgency && (
-                  <>
-                    <NavItem 
-                      icon={<Kanban className="w-5 h-5" />} 
-                      label="Quadro" 
-                      active={currentView === 'kanban'} 
-                      onClick={() => { setCurrentView('kanban'); setSidebarOpen(false); }}
-                    />
-                    <NavItem 
-                      icon={<BarChart3 className="w-5 h-5" />} 
-                      label="Relatórios" 
-                      active={currentView === 'reports'} 
-                      onClick={() => { setCurrentView('reports'); setSidebarOpen(false); }}
-                    />
-                    <NavItem 
-                      icon={<Users className="w-5 h-5" />} 
-                      label="Equipe" 
-                      active={currentView === 'team'} 
-                      onClick={() => { setCurrentView('team'); setSidebarOpen(false); }}
-                    />
-                    <NavItem 
-                      icon={<Bell className="w-5 h-5" />} 
-                      label="Notificações" 
-                      active={currentView === 'notifications'} 
-                      onClick={() => { setCurrentView('notifications'); setSidebarOpen(false); }}
-                      badge={unreadNotifications > 0 ? unreadNotifications : undefined}
-                    />
-                  </>
-                )}
+                <NavItem icon={<LayoutGrid className="w-5 h-5" />} label="Feed" active={currentView === 'feed'} onClick={() => { setCurrentView('feed'); setSidebarOpen(false); }} />
+                <NavItem icon={<Calendar className="w-5 h-5" />} label="Calendário" active={currentView === 'calendar'} onClick={() => { setCurrentView('calendar'); setSidebarOpen(false); }} />
+                {permissions.views.includes('kanban') && <NavItem icon={<Kanban className="w-5 h-5" />} label="Quadro" active={currentView === 'kanban'} onClick={() => { setCurrentView('kanban'); setSidebarOpen(false); }} />}
+                {permissions.views.includes('briefing') && <NavItem icon={<FileText className="w-5 h-5" />} label="Briefing" active={currentView === 'briefing'} onClick={() => { setCurrentView('briefing'); setSidebarOpen(false); }} />}
+                {permissions.views.includes('reports') && <NavItem icon={<BarChart3 className="w-5 h-5" />} label="Relatórios" active={currentView === 'reports'} onClick={() => { setCurrentView('reports'); setSidebarOpen(false); }} />}
+                {permissions.views.includes('team') && <NavItem icon={<Users className="w-5 h-5" />} label="Equipe" active={currentView === 'team'} onClick={() => { setCurrentView('team'); setSidebarOpen(false); }} />}
+                {permissions.views.includes('notifications') && <NavItem icon={<Bell className="w-5 h-5" />} label="Notificações" active={currentView === 'notifications'} onClick={() => { setCurrentView('notifications'); setSidebarOpen(false); }} badge={unreadNotifications > 0 ? unreadNotifications : undefined} />}
+                <NavItem icon={<UserCircle className="w-5 h-5" />} label="Minha Conta" active={currentView === 'account'} onClick={() => { setCurrentView('account'); setSidebarOpen(false); }} />
               </nav>
               
               <div className="p-4 border-t border-gray-100">
@@ -1223,13 +1153,6 @@ function AppContent({
               )}
               {isAgency && (
                 <>
-                  <button 
-                    onClick={handleReset}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors hidden sm:flex"
-                    title="Resetar Demo"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
                   {/* Theme Switcher */}
                   <button
                     onClick={cycleTheme}
@@ -1353,7 +1276,7 @@ function AppContent({
         onImport={(importedPosts) => {
           setPosts(prev => [...importedPosts, ...prev]);
           importedPosts.forEach(post => {
-            dbService.upsertPost(post).catch(err => {
+            dbService.upsertPost({ ...post, ownerId }).catch(err => {
               console.error('Failed to save AI post:', err);
               addToast(`Erro ao salvar post AI: ${err.message}`, 'error');
             });
@@ -1398,7 +1321,7 @@ function AppContent({
             setClients(clients.map(c => c.id === editingClient.id ? { ...c, ...clientData } as Client : c));
             
             // Sync edit to DB
-            dbService.upsertClient({ id: editingClient.id, ...clientData }).then(realClient => {
+            dbService.upsertClient({ id: editingClient.id, ...clientData, ownerId }).then(realClient => {
               setClients(prev => prev.map(c => c.id === editingClient.id ? realClient : c));
               addToast('Cliente atualizado!', 'success');
             }).catch(err => {
@@ -1424,7 +1347,7 @@ function AppContent({
             addToast(`Salvando ${clientData.name}...`, 'info');
 
             // Sync creation to DB, omitting optimistic ID so Postgres auto-generates UUID
-            dbService.upsertClient({ ...clientData, avatar: newClient.avatar }).then(realClient => {
+            dbService.upsertClient({ ...clientData, avatar: newClient.avatar, ownerId }).then(realClient => {
               setClients(prev => prev.map(c => c.id === optimisticId ? realClient : c));
               setSelectedClientId(realClient.id);
               addToast('Cliente salvo no banco!', 'success');
@@ -1461,10 +1384,9 @@ function AppContent({
         client={currentClient}
         posts={posts}
         onSimulate={(month) => {
-          onRoleChange('client');
           setCurrentView('feed');
           if (month) setViewMonth(month);
-          addToast(`Simulando acesso do cliente: ${currentClient.name}`, 'info');
+          addToast(`Link de compartilhamento gerado para ${currentClient.name}`, 'info');
         }}
       />
       {/* Delete Confirmation Modal */}
@@ -1584,7 +1506,6 @@ export default function App() {
         <AppContent 
           userRole={profile.role} 
           onLogout={signOut}
-          onRoleChange={() => {}} // Block manual role shifting natively governed by DB
           initialClientId={initialClientId}
           initialViewMonth={initialViewMonth}
         />
