@@ -133,11 +133,11 @@ export const INITIAL_POSTS: Post[] = [
 ];
 
 export const MOCK_USERS = [
-  { id: 'u1', name: 'Ana Silva', role: 'admin' as UserRole, avatar: 'AS' },
-  { id: 'u2', name: 'Beatriz Copy', role: 'copywriter' as UserRole, avatar: 'BC' },
-  { id: 'u3', name: 'Carlos Design', role: 'designer' as UserRole, avatar: 'CD' },
-  { id: 'u4', name: 'Daniel Scheduler', role: 'scheduler' as UserRole, avatar: 'DS' },
-  { id: 'u5', name: 'Cliente Demo', role: 'client' as UserRole, avatar: 'CL' },
+  { id: 'u1', name: 'Ana Silva', role: 'admin' as UserRole, avatar: 'AS', email: 'ana@skyflow.com', phone: '(11) 98765-4321' },
+  { id: 'u2', name: 'Beatriz Copy', role: 'copywriter' as UserRole, avatar: 'BC', email: 'beatriz@skyflow.com', phone: '(11) 99999-8888' },
+  { id: 'u3', name: 'Carlos Design', role: 'designer' as UserRole, avatar: 'CD', email: 'carlos@skyflow.com', phone: '(11) 97777-6666' },
+  { id: 'u4', name: 'Daniel Scheduler', role: 'scheduler' as UserRole, avatar: 'DS', email: 'daniel@skyflow.com', phone: '(11) 96666-5555' },
+  { id: 'u5', name: 'Cliente Demo', role: 'client' as UserRole, avatar: 'CL', email: 'cliente@demo.com', phone: '(11) 95555-4444' },
 ];
 
 export const INITIAL_NOTIFICATIONS: Notification[] = [

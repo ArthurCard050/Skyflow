@@ -33,7 +33,7 @@ class PostService {
     const updatedPost = {
       ...post,
       status: newStatus,
-      approvedAt: newStatus === 'approved' ? new Date().toISOString() : post.approvedAt,
+      approvedAt: (newStatus === 'copy_approved' || newStatus === 'design_approved') ? new Date().toISOString() : post.approvedAt,
       history: [newHistory, ...post.history]
     };
 

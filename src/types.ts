@@ -13,11 +13,22 @@ export type PostStatus =
 
 export type UserRole = 'admin' | 'copywriter' | 'designer' | 'scheduler' | 'client';
 
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: UserRole;
+  avatar: string;
+  email?: string;
+  phone?: string;
+}
+
 export interface Client {
   id: string;
   name: string;
   avatar: string;
   email: string;
+  phone?: string;
+  notes?: string;
 }
 
 export interface Batch {
@@ -58,7 +69,15 @@ export interface Post {
   platform: 'Instagram' | 'LinkedIn' | 'Facebook';
   
   // New fields for SaaS functionality
+  format?: MediaFormat;
   title?: string;
+  
+  // Production Briefing Fields
+  contentPillar?: string;
+  visualDirection?: string;
+  videoScript?: string;
+  cta?: string;
+  
   version: number;
   commentsCount: number;
   createdAt: string;

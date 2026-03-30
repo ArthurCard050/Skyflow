@@ -94,7 +94,7 @@ export function PostDetailModal({
   onEdit,
   onStatusChange
 }: PostDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'details' | 'history' | 'comments'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'briefing' | 'history' | 'comments'>('details');
   const [comment, setComment] = useState('');
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState('');
@@ -297,6 +297,19 @@ export function PostDetailModal({
                 >
                   Detalhes
                 </button>
+                {isAgency && (
+                  <button
+                    onClick={() => setActiveTab('briefing')}
+                    className={cn(
+                      "flex-1 py-3 text-sm font-medium border-b-2 transition-colors",
+                      activeTab === 'briefing' 
+                        ? "border-sky-500 text-sky-600 dark:text-sky-400" 
+                        : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                    )}
+                  >
+                    Briefing 🎨
+                  </button>
+                )}
                 <button
                   onClick={() => setActiveTab('history')}
                   className={cn(
@@ -440,6 +453,58 @@ export function PostDetailModal({
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {activeTab === 'briefing' && isAgency && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-yellow-800 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 flex items-center rounded-lg">
+                        <Lock className="w-3 h-3 mr-1" /> Interno - Invisível para Clientes
+                      </p>
+                      <button
+                        onClick={() => onEdit && onEdit(post)}
+                        className="text-xs font-medium text-sky-600 hover:underline flex items-center"
+                      >
+                        <Edit2 className="w-3 h-3 mr-1" /> Editar Briefing
+                      </button>
+                    </div>
+
+                    <div className="bg-sky-50 dark:bg-sky-900/10 p-4 rounded-xl border border-sky-100 dark:border-sky-800">
+                      <h3 className="text-sm font-bold text-sky-800 dark:text-sky-300 mb-2 flex items-center gap-2">
+                        Pilar de Conteúdo
+                      </h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                        {post.contentPillar || 'Não definido.'}
+                      </p>
+                    </div>
+
+                    <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-xl border border-purple-100 dark:border-purple-800">
+                      <h3 className="text-sm font-bold text-purple-800 dark:text-purple-300 mb-2 flex items-center gap-2">
+                        Direção de Arte / Ideia Visual
+                      </h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                        {post.visualDirection || 'Nenhuma direção de arte especificada.'}
+                      </p>
+                    </div>
+
+                    <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-800">
+                      <h3 className="text-sm font-bold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-2">
+                        Draft de Copy / Roteiro
+                      </h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                        {post.videoScript || 'Nenhum roteiro especificado.'}
+                      </p>
+                    </div>
+
+                    <div className="bg-emerald-50 dark:bg-emerald-900/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800">
+                      <h3 className="text-sm font-bold text-emerald-800 dark:text-emerald-300 mb-2 flex items-center gap-2">
+                        Call to Action (CTA)
+                      </h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                        {post.cta || 'Nenhum CTA especificado.'}
+                      </p>
+                    </div>
                   </div>
                 )}
 

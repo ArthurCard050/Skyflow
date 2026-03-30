@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Client, Post, Batch, MediaItem, MediaType, MediaFormat } from '../types';
 import { useToast } from './Toast';
 import { MediaCarousel } from './MediaCarousel';
+import { storageService } from '../services/storage';
 
 interface NewPostModalProps {
   isOpen: boolean;
@@ -26,6 +27,10 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
   const [date, setDate] = useState(defaultDate || new Date().toISOString().split('T')[0]);
   const [caption, setCaption] = useState('');
   const [title, setTitle] = useState('');
+  const [contentPillar, setContentPillar] = useState('');
+  const [visualDirection, setVisualDirection] = useState('');
+  const [videoScript, setVideoScript] = useState('');
+  const [cta, setCta] = useState('');
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -40,12 +45,20 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
         setDate(post.date);
         setCaption(post.caption);
         setTitle(post.title || '');
+        setContentPillar(post.contentPillar || '');
+        setVisualDirection(post.visualDirection || '');
+        setVideoScript(post.videoScript || '');
+        setCta(post.cta || '');
         setMedia(post.media || []);
         setPostFormat(post.media?.[0]?.format || 'square');
       } else {
         setClientId(selectedClientId);
         setBatchId('');
         setTitle('');
+        setContentPillar('');
+        setVisualDirection('');
+        setVideoScript('');
+        setCta('');
         resetForm();
         if (defaultDate) setDate(defaultDate);
       }
@@ -72,6 +85,10 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
       platform,
       date,
       caption,
+      contentPillar: contentPillar.trim() || undefined,
+      visualDirection: visualDirection.trim() || undefined,
+      videoScript: videoScript.trim() || undefined,
+      cta: cta.trim() || undefined,
       media,
       status: post?.status || 'copy_production',
       rating: post?.rating,
@@ -100,6 +117,10 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
     setCaption('');
     setMedia([]);
     setTitle('');
+    setContentPillar('');
+    setVisualDirection('');
+    setVideoScript('');
+    setCta('');
     setDate(defaultDate || new Date().toISOString().split('T')[0]);
     setPlatform('Instagram');
     setBatchId('');
@@ -111,7 +132,7 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
     
     let uploadingCount = 0;
     
-    files.forEach(file => {
+    files.forEach(async (file) => {
       const isVideo = file.type.startsWith('video/');
       const isImage = file.type.startsWith('image/');
       
@@ -127,10 +148,9 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
 
       setIsUploading(true);
       uploadingCount++;
-      const reader = new FileReader();
 
-      reader.onload = (e) => {
-        const url = e.target?.result as string;
+      try {
+        const url = await storageService.uploadMedia(file, clientId);
         const newMedia: MediaItem = {
           id: 'm_' + Math.random().toString(36).substr(2,9),
           url,
@@ -139,21 +159,15 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
         };
         
         setMedia(prev => [...prev, newMedia]);
-        
+      } catch (err) {
+        addToast(`Erro ao carregar ${file.name}.`, 'error');
+      } finally {
         uploadingCount--;
         if (uploadingCount === 0) {
           setIsUploading(false);
           addToast(files.length > 1 ? 'Mídias carregadas com sucesso!' : 'Mídia carregada!', 'success');
         }
-      };
-
-      reader.onerror = () => {
-        uploadingCount--;
-        if (uploadingCount === 0) setIsUploading(false);
-        addToast(`Erro ao carregar ${file.name}.`, 'error');
-      };
-
-      reader.readAsDataURL(file);
+      }
     });
   };
 
@@ -394,6 +408,54 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
                           <span className="absolute right-3 bottom-3 text-[10px] text-gray-400">{caption.length}</span>
                         </div>
                       </div>
+
+                      {/* Briefing Criativo (Interno) */}
+                      <details className="mt-4 border border-sky-200 dark:border-sky-800 rounded-xl overflow-hidden group bg-sky-50 dark:bg-sky-900/10">
+                        <summary className="p-3 text-sm font-bold text-sky-800 dark:text-sky-300 cursor-pointer list-none flex items-center justify-between">
+                          Briefing Criativo (Interno) 🎨
+                          <div className="text-[10px] font-normal opacity-70">Clique para expandir</div>
+                        </summary>
+                        <div className="p-3 border-t border-sky-100 dark:border-sky-800 space-y-3 bg-white/50 dark:bg-gray-800/50">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Pilar de Conteúdo</label>
+                            <input
+                              type="text"
+                              value={contentPillar}
+                              onChange={(e) => setContentPillar(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                              placeholder="Ex: Autoridade"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Direção de Arte / Visual</label>
+                            <textarea
+                              value={visualDirection}
+                              onChange={(e) => setVisualDirection(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-sky-500 min-h-[60px] resize-none"
+                              placeholder="Como deve ser a arte ou gravação..."
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Draft de Copy / Roteiro</label>
+                            <textarea
+                              value={videoScript}
+                              onChange={(e) => setVideoScript(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-sky-500 min-h-[60px] resize-none"
+                              placeholder="Falas do vídeo..."
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Call to Action (CTA)</label>
+                            <input
+                              type="text"
+                              value={cta}
+                              onChange={(e) => setCta(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-sky-500"
+                              placeholder="Comenta EU QUERO"
+                            />
+                          </div>
+                        </div>
+                      </details>
                     </div>
                   </div>
                 </form>

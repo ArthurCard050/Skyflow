@@ -1,29 +1,10 @@
 import React, { useState } from 'react';
-import { Mail, Lock, ArrowRight, Cloud } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Cloud, Database } from 'lucide-react';
 import { motion } from 'motion/react';
+import { supabase } from '../lib/supabase';
+import { seedDatabase } from '../lib/seed';
 
-import { UserRole } from '../types';
-
-interface LoginCredentials {
-  email: string;
-  password: string;
-  role: UserRole;
-  name: string;
-  clientId?: string;
-}
-
-const VALID_CREDENTIALS: LoginCredentials[] = [
-  { email: 'admin@skyflow.com', password: 'skyflow2025', role: 'admin', name: 'Ana Silva' },
-  { email: 'vilacarioca@skyflow.com', password: 'skyflow2025', role: 'client', name: 'Vila Carioca', clientId: '4' },
-  { email: 'techstart@skyflow.com', password: 'skyflow2025', role: 'client', name: 'TechStart', clientId: '1' },
-  { email: 'greenlife@skyflow.com', password: 'skyflow2025', role: 'client', name: 'GreenLife', clientId: '2' },
-];
-
-interface LoginViewProps {
-  onLogin: (role: UserRole, clientId?: string) => void;
-}
-
-export function LoginView({ onLogin }: LoginViewProps) {
+export function LoginView() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -31,26 +12,31 @@ export function LoginView({ onLogin }: LoginViewProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      setError('Por favor, preencha todos os campos.');
+      return;
+    }
+
     setError('');
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+      
+      // The AuthContext will automatically detect the state change and re-render App.tsx
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message === 'Invalid login credentials' ? 'Email ou senha inválidos.' : err.message);
+    } finally {
       setIsLoading(false);
-      if (!email || !password) {
-        setError('Por favor, preencha todos os campos.');
-        return;
-      }
-
-      const match = VALID_CREDENTIALS.find(
-        c => c.email.toLowerCase() === email.toLowerCase() && c.password === password
-      );
-
-      if (match) {
-        onLogin(match.role, match.clientId);
-      } else {
-        setError('Email ou senha inválidos.');
-      }
-    }, 800);
+    }
   };
 
   return (
@@ -129,6 +115,17 @@ export function LoginView({ onLogin }: LoginViewProps) {
           <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
             Acesso restrito. Contate o administrador para obter credenciais.
           </p>
+          
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              onClick={seedDatabase}
+              className="mt-6 w-full py-2 flex items-center justify-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 rounded-lg transition-colors border border-emerald-200 dark:border-emerald-800"
+            >
+              <Database className="w-3 h-3" />
+              Inicializar Banco de Dados (Seed)
+            </button>
+          )}
         </motion.div>
       </div>
     </div>

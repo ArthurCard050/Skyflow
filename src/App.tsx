@@ -12,13 +12,18 @@ import { NotificationsView } from './components/NotificationsView';
 import { LoginView } from './components/LoginView';
 import { DeleteConfirmationModal } from './components/DeleteConfirmationModal';
 import { PostDetailModal } from './components/PostDetailModal';
+import { AIImportModal } from './components/AIImportModal';
+import { UserSettingsModal } from './components/UserSettingsModal';
 import { ToastProvider, useToast } from './components/Toast';
 import { INITIAL_POSTS, CLIENTS, INITIAL_BATCHES, INITIAL_NOTIFICATIONS } from './data/mockData';
 import { Post, Client, Notification, Batch, PostStatus, UserRole } from './types';
 import { MOCK_USERS } from './data/mockData';
-import { Plus, Folder, Edit3, Trash2, ListFilter, LayoutGrid, Calendar, Users, Bell, Settings, ChevronDown, Share2, Menu, X, Sun, Moon, Cloud, Kanban, BarChart3, RotateCcw, Check, Palette, List, Grid } from 'lucide-react';
+import { Plus, Folder, Edit3, Trash2, ListFilter, LayoutGrid, Calendar, Users, Bell, Settings, ChevronDown, Share2, Menu, X, Sun, Moon, Cloud, Kanban, BarChart3, RotateCcw, Check, Palette, List, Grid, LogOut } from 'lucide-react';
 import { cn } from './lib/utils';
 import { AnimatePresence, motion } from 'motion/react';
+import { useAuth } from './contexts/AuthContext';
+import { dbService } from './services/db';
+import { supabase } from './lib/supabase';
 
 // ... imports
 
@@ -37,10 +42,11 @@ function AppContent({
   initialClientId?: string | null,
   initialViewMonth?: string | null
 }) {
-  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
-  const [clients, setClients] = useState<Client[]>(CLIENTS);
-  const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
-  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'changes_requested' | 'published'>('all');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -49,6 +55,7 @@ function AppContent({
   const [selectedBatchId, setSelectedBatchId] = useState<string>('all');
   const [isNewPostModalOpen, setIsNewPostModalOpen] = useState(false);
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isClientMenuOpen, setIsClientMenuOpen] = useState(false);
   const [highlightedPostId, setHighlightedPostId] = useState<string | null>(null);
@@ -56,10 +63,42 @@ function AppContent({
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [viewMonth, setViewMonth] = useState<string | null>(initialViewMonth || null);
   const [calendarNewPostDate, setCalendarNewPostDate] = useState<string | null>(null);
+  const [isAIImportModalOpen, setIsAIImportModalOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
   
   type Theme = 'default' | 'dark' | 'light';
   const [theme, setTheme] = useState<Theme>('default');
+
+  React.useEffect(() => {
+    async function loadData() {
+      try {
+        const [dsClients, dsBatches, dsPosts, dsNotifs] = await Promise.all([
+          dbService.getClients(),
+          dbService.getBatches(),
+          dbService.getPosts(),
+          dbService.getNotifications()
+        ]);
+        
+        setClients(dsClients);
+        setBatches(dsBatches);
+        setPosts(dsPosts);
+        setNotifications(dsNotifs);
+
+        if (dsClients.length > 0 && (!initialClientId || !dsClients.find(c => c.id === initialClientId))) {
+          setSelectedClientId(dsClients[0].id);
+        } else if (initialClientId) {
+          setSelectedClientId(initialClientId);
+        }
+      } catch (err) {
+        console.error('Erro geral ao carregar supabase:', err);
+      } finally {
+        setIsLoadingData(false);
+      }
+    }
+    loadData();
+  }, [initialClientId]);
 
   React.useEffect(() => {
     // @custom-variant dark in index.css handles all dark: Tailwind classes
@@ -94,7 +133,8 @@ function AppContent({
   
   const { addToast } = useToast();
 
-  const currentUser = MOCK_USERS.find(u => u.id === 'u1') || MOCK_USERS[0];
+  const { profile } = useAuth();
+  const currentUser = profile || { id: 'u1', name: 'Sistema', role: 'admin' as UserRole, avatar: 'S' };
   const isAgency = userRole !== 'client';
 
   // Check URL params on mount - Removed as it's handled in App component now
@@ -108,7 +148,7 @@ function AppContent({
           { 
             id: Math.random().toString(36).substr(2, 9), 
             type: 'comment', 
-            user: isAgency ? currentUser.name : 'Cliente Demo', 
+            user: currentUser.name, 
             timestamp: new Date().toISOString(),
             details: comment
           },
@@ -117,6 +157,7 @@ function AppContent({
       } : post
     ));
     addToast('Comentário adicionado!', 'success');
+    dbService.addHistory(id, 'comment', currentUser.id, comment).catch(console.error);
   };
 
   const handleStatusChange = (postId: string, newStatus: PostStatus) => {
@@ -128,7 +169,7 @@ function AppContent({
           { 
             id: Math.random().toString(36).substr(2, 9), 
             type: 'status_change', 
-            user: isAgency ? currentUser.name : 'Cliente Demo', 
+            user: currentUser.name, 
             timestamp: new Date().toISOString(),
             details: `Moveu para ${newStatus.replace('_', ' ')}`
           },
@@ -137,6 +178,8 @@ function AppContent({
       } : post
     ));
     addToast('Status atualizado com sucesso!', 'success');
+    dbService.updatePostStatus(postId, newStatus).catch(console.error);
+    dbService.addHistory(postId, 'status_change', currentUser.id, `Moveu para ${newStatus.replace('_', ' ')}`).catch(console.error);
   };
 
   const currentClient = clients.find(c => c.id === selectedClientId) || clients[0];
@@ -215,6 +258,24 @@ function AppContent({
     }
     
     addToast('Post aprovado com sucesso!', 'success');
+    
+    const pst = posts.find(p => p.id === id);
+    if (pst) {
+      let nextStatus = pst.status;
+      if (userRole === 'client') {
+        if (pst.status.includes('copy')) nextStatus = 'copy_approved';
+        else if (pst.status.includes('design')) nextStatus = 'design_approved';
+        else if (pst.status === 'scheduling') nextStatus = 'scheduled';
+        else nextStatus = 'copy_approved';
+      } else {
+        if (pst.status === 'copy_production') nextStatus = 'copy_sent';
+        if (pst.status === 'design_production') nextStatus = 'design_sent';
+      }
+      const approvedAt = nextStatus.includes('approved') ? new Date().toISOString() : undefined;
+      dbService.updatePostStatus(id, nextStatus, approvedAt).catch(console.error);
+      const acts = userRole === 'client' ? `Aprovado pelo cliente (Nota: ${rating})` : `Aprovado internamente por ${userRole}`;
+      dbService.addHistory(id, 'approved', currentUser.id, acts).catch(console.error);
+    }
   };
 
   const handleRequestChanges = (id: string, feedback: string) => {
@@ -262,6 +323,18 @@ function AppContent({
     }
 
     addToast('Solicitação de ajuste enviada.', 'info');
+    
+    const pst = posts.find(p => p.id === id);
+    if (pst) {
+      let nextStatus = pst.status;
+      if (userRole === 'client') {
+        if (pst.status.includes('copy')) nextStatus = 'copy_changes';
+        else if (pst.status.includes('design')) nextStatus = 'design_changes';
+        else nextStatus = 'copy_changes';
+      }
+      dbService.updatePostStatus(id, nextStatus).catch(console.error);
+      dbService.addHistory(id, 'status_change', currentUser.id, `Solicitou ajustes: ${feedback}`).catch(console.error);
+    }
   };
 
   const handleMarkAsPublished = (id: string) => {
@@ -269,6 +342,8 @@ function AppContent({
       post.id === id ? { ...post, status: 'published' } : post
     ));
     addToast('Post marcado como publicado!', 'success');
+    dbService.updatePostStatus(id, 'published').catch(console.error);
+    dbService.addHistory(id, 'status_change', currentUser.id, 'Marcou como publicado').catch(console.error);
   };
 
   const handleDeletePost = (id: string) => {
@@ -280,6 +355,7 @@ function AppContent({
     if (postToDelete) {
       setPosts(prevPosts => prevPosts.filter(p => p.id !== postToDelete));
       addToast('Post excluído com sucesso.', 'success');
+      dbService.deletePost(postToDelete).catch(console.error);
       setPostToDelete(null);
     }
   };
@@ -296,6 +372,7 @@ function AppContent({
       setBatches(prevBatches => [...prevBatches, newBatch]);
       setSelectedBatchId(newBatch.id);
       addToast(`Lote "${name}" criado com sucesso!`, 'success');
+      supabase.from('batches').insert({ id: newBatch.id, name, client_id: selectedClientId }).then(({error}) => error && console.error(error));
     }
   };
 
@@ -307,6 +384,7 @@ function AppContent({
     if (newName && newName !== batch.name) {
       setBatches(prevBatches => prevBatches.map(b => b.id === batchId ? { ...b, name: newName } : b));
       addToast('Lote renomeado com sucesso!', 'success');
+      supabase.from('batches').update({ name: newName }).eq('id', batchId).then(({error}) => error && console.error(error));
     }
   };
 
@@ -318,6 +396,7 @@ function AppContent({
         setSelectedBatchId('all');
       }
       addToast('Lote excluído com sucesso.', 'success');
+      supabase.from('batches').delete().eq('id', batchId).then(({error}) => error && console.error(error));
     }
   };
 
@@ -345,6 +424,7 @@ function AppContent({
         addToast('Novo post adicionado ao feed.', 'success');
       }
     }
+    dbService.upsertPost(savedPost).catch(console.error);
     setIsNewPostModalOpen(false);
   };
 
@@ -679,7 +759,7 @@ function AppContent({
               </div>
 
               {/* Post Grid */}
-              <div className={cn("pb-20", viewMode === 'compact' ? 'space-y-2' : 'space-y-6')}>
+              <div className={cn("pb-20", viewMode === 'compact' ? 'flex flex-col gap-2' : 'columns-1 lg:columns-2 xl:columns-3 gap-6 space-y-6 md:space-y-0')}>
                 {filteredPosts.length > 0 ? (
                   viewMode === 'compact' ? (
                     filteredPosts.map(post => (
@@ -693,19 +773,20 @@ function AppContent({
                     ))
                   ) : (
                   filteredPosts.map(post => (
-                    <PostCard
-                      key={post.id}
-                      id={`post-${post.id}`}
-                      post={post}
-                      onApprove={handleApprove}
-                      onRequestChanges={handleRequestChanges}
-                      onImageClick={setSelectedImage}
-                      onEdit={handleEditPost}
-                      onMarkAsPublished={handleMarkAsPublished}
-                      onDelete={handleDeletePost}
-                      userRole={userRole}
-                      highlighted={highlightedPostId === post.id}
-                    />
+                    <div key={post.id} className="break-inside-avoid mb-6">
+                      <PostCard
+                        id={`post-${post.id}`}
+                        post={post}
+                        onApprove={handleApprove}
+                        onRequestChanges={handleRequestChanges}
+                        onImageClick={setSelectedImage}
+                        onEdit={handleEditPost}
+                        onMarkAsPublished={handleMarkAsPublished}
+                        onDelete={handleDeletePost}
+                        userRole={userRole}
+                        highlighted={highlightedPostId === post.id}
+                      />
+                    </div>
                   ))
                   )
                 ) : (
@@ -735,6 +816,14 @@ function AppContent({
       </AnimatePresence>
     );
   };
+
+  if (isLoadingData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 border-none">
+        <div className="w-10 h-10 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen text-gray-900 dark:text-gray-100 font-sans selection:bg-sky-100 dark:selection:bg-sky-900 flex transition-colors duration-300">
@@ -981,32 +1070,47 @@ function AppContent({
                     </div>
                     <div className="space-y-1 max-h-48 overflow-y-auto mb-2">
                       {clients.map(client => (
-                        <button
-                          key={client.id}
-                          onClick={() => {
-                            setSelectedClientId(client.id);
-                            setSidebarOpen(false);
-                          }}
-                          className={cn(
-                            "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                            selectedClientId === client.id 
-                              ? "bg-sky-50 text-sky-700" 
-                              : "text-gray-600 hover:bg-gray-50"
-                          )}
-                        >
-                          <div className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold",
-                            selectedClientId === client.id ? "bg-sky-200 text-sky-800" : "bg-gray-100 text-gray-500"
-                          )}>
-                            {client.avatar}
-                          </div>
-                          <span className="flex-1 text-left truncate">{client.name}</span>
-                          {selectedClientId === client.id && <Check className="w-3 h-3" />}
-                        </button>
+                        <div key={client.id} className="group relative flex items-center">
+                          <button
+                            onClick={() => {
+                              setSelectedClientId(client.id);
+                              setSidebarOpen(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors pr-10",
+                              selectedClientId === client.id 
+                                ? "bg-sky-50 text-sky-700" 
+                                : "text-gray-600 hover:bg-gray-50"
+                            )}
+                          >
+                            <div className={cn(
+                              "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
+                              selectedClientId === client.id ? "bg-sky-200 text-sky-800" : "bg-gray-100 text-gray-500"
+                            )}>
+                              {client.avatar}
+                            </div>
+                            <span className="flex-1 text-left truncate">{client.name}</span>
+                            {selectedClientId === client.id && <Check className="w-3 h-3 shrink-0" />}
+                          </button>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingClient(client);
+                              setIsNewClientModalOpen(true);
+                              setSidebarOpen(false);
+                            }}
+                            className="absolute right-2 opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-all"
+                            title="Editar Cliente"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       ))}
                     </div>
                     <button
                       onClick={() => {
+                        setEditingClient(null);
                         setSidebarOpen(false);
                         setIsNewClientModalOpen(true);
                       }}
@@ -1028,7 +1132,7 @@ function AppContent({
       <div className="flex-1 lg:ml-64 flex flex-col min-h-screen">
         {/* Header */}
         <header className="bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl border-b border-white/20 dark:border-gray-800/50 sticky top-0 z-10">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3 lg:hidden">
               <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 text-gray-600">
                 <Menu className="w-6 h-6" />
@@ -1066,6 +1170,13 @@ function AppContent({
                     )}
                   </button>
 
+                  <button 
+                    onClick={() => setIsAIImportModalOpen(true)}
+                    className="hidden lg:flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-all"
+                  >
+                    <span className="text-sm">📊</span>
+                    <span className="hidden sm:inline">Importar Planilha</span>
+                  </button>
                   <button 
                     onClick={() => {
                       setEditingPost(null);
@@ -1111,25 +1222,51 @@ function AppContent({
                 {pendingCount} pendentes
               </div>
               <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-2 hidden sm:block" />
-              <button 
-                onClick={onLogout}
-                className="flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-700 p-1.5 rounded-lg transition-colors"
-              >
-                <div className="w-8 h-8 bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400 rounded-full flex items-center justify-center font-bold text-xs">
-                  {currentUser.avatar}
-                </div>
-                <div className="hidden md:block text-left">
-                  <p className="text-xs font-medium text-gray-900 dark:text-gray-100">
-                    {currentUser.name}
-                  </p>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{isAgency ? 'Agency' : 'Cliente'}</p>
-                </div>
-              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className="flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-700 p-1.5 rounded-lg transition-colors"
+                >
+                  <div className="w-8 h-8 bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-400 rounded-full flex items-center justify-center font-bold text-xs">
+                    {currentUser.avatar}
+                  </div>
+                  <div className="hidden md:block text-left">
+                    <p className="text-xs font-medium text-gray-900 dark:text-gray-100">
+                      {currentUser.name}
+                    </p>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{isAgency ? 'Agency' : 'Cliente'}</p>
+                  </div>
+                </button>
+
+                {isUserMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsUserMenuOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 z-50 overflow-hidden">
+                      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{currentUser.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{currentUser.email || 'usuario@skyflow.com'}</p>
+                      </div>
+                      <button 
+                        onClick={() => { setIsUserMenuOpen(false); setIsUserSettingsOpen(true); }}
+                        className="w-full px-4 py-3 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors"
+                      >
+                        <Settings className="w-4 h-4 text-gray-400 dark:text-gray-500" /> Minha Conta
+                      </button>
+                      <button 
+                        onClick={() => { setIsUserMenuOpen(false); onLogout(); }}
+                        className="w-full px-4 py-3 text-sm text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors border-t border-gray-100 dark:border-gray-700"
+                      >
+                        <LogOut className="w-4 h-4" /> Sair
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {renderContent()}
         </main>
       </div>
@@ -1178,6 +1315,16 @@ function AppContent({
         }}
       />
 
+      <AIImportModal
+        isOpen={isAIImportModalOpen}
+        onClose={() => setIsAIImportModalOpen(false)}
+        onImport={(importedPosts) => {
+          setPosts(prev => [...importedPosts, ...prev]);
+        }}
+        clientId={selectedClientId}
+        currentUser={currentUser.name}
+      />
+
       {/* New Post Modal */}
       <NewPostModal
         isOpen={isNewPostModalOpen}
@@ -1198,8 +1345,33 @@ function AppContent({
       {/* New Client Modal */}
       <NewClientModal
         isOpen={isNewClientModalOpen}
-        onClose={() => setIsNewClientModalOpen(false)}
-        onSave={handleAddClient}
+        onClose={() => {
+          setIsNewClientModalOpen(false);
+          setTimeout(() => setEditingClient(null), 300);
+        }}
+        client={editingClient}
+        onSave={(clientData) => {
+          if (editingClient) {
+            setClients(clients.map(c => c.id === editingClient.id ? { ...c, ...clientData } as Client : c));
+          } else {
+            const newClient: Client = {
+              id: Math.random().toString(36).substr(2, 9),
+              avatar: clientData.name.substring(0, 2).toUpperCase(),
+              ...clientData,
+            } as Client;
+            setClients([...clients, newClient]);
+            setSelectedClientId(newClient.id);
+          }
+          setIsNewClientModalOpen(false);
+        }}
+        onDelete={(id) => {
+          const filtered = clients.filter(c => c.id !== id);
+          setClients(filtered);
+          if (selectedClientId === id && filtered.length > 0) {
+            setSelectedClientId(filtered[0].id);
+          }
+          setIsNewClientModalOpen(false);
+        }}
       />
 
       {/* Share Link Modal */}
@@ -1301,58 +1473,43 @@ function FilterButton({
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState<UserRole>('admin');
+  const { user, profile, isLoading, signOut } = useAuth();
   const [initialClientId, setInitialClientId] = useState<string | null>(null);
   const [initialViewMonth, setInitialViewMonth] = useState<string | null>(null);
 
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const mode = params.get('mode');
     const clientId = params.get('id');
     const month = params.get('month');
 
-    if (mode === 'client' && clientId) {
-      const clientExists = CLIENTS.find(c => c.id === clientId);
-      if (clientExists) {
-        setUserRole('client');
-        setIsAuthenticated(true);
-        setInitialClientId(clientId);
-        if (month) setInitialViewMonth(month);
-      }
-    }
-  }, []);
-
-  const handleLogin = (role: UserRole, clientId?: string) => {
-    setUserRole(role);
-    setIsAuthenticated(true);
     if (clientId) {
       setInitialClientId(clientId);
     }
-  };
+    if (month) {
+      setInitialViewMonth(month);
+    }
+  }, []);
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setInitialClientId(null);
-    setInitialViewMonth(null);
-  };
-
-  const handleRoleChange = (role: UserRole) => {
-    setUserRole(role);
-  };
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="w-10 h-10 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <ToastProvider>
-      {isAuthenticated ? (
+      {user && profile ? (
         <AppContent 
-          userRole={userRole} 
-          onLogout={handleLogout}
-          onRoleChange={handleRoleChange}
+          userRole={profile.role} 
+          onLogout={signOut}
+          onRoleChange={() => {}} // Block manual role shifting natively governed by DB
           initialClientId={initialClientId}
           initialViewMonth={initialViewMonth}
         />
       ) : (
-        <LoginView onLogin={handleLogin} />
+        <LoginView />
       )}
     </ToastProvider>
   );
