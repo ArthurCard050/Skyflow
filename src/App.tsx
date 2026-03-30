@@ -182,7 +182,7 @@ function AppContent({
     dbService.addHistory(postId, 'status_change', currentUser.id, `Moveu para ${newStatus.replace('_', ' ')}`).catch(console.error);
   };
 
-  const currentClient = clients.find(c => c.id === selectedClientId) || clients[0];
+  const currentClient = clients.find(c => c.id === selectedClientId) || clients[0] || { id: 'empty', name: 'Sem Cliente', avatar: '?' };
 
   const handleAddClient = (name: string, email: string) => {
     if (clients.length >= 20) {
