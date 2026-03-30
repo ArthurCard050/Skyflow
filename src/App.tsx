@@ -890,7 +890,6 @@ function AppContent({
           {permissions.views.includes('notifications') && (
             <NavItem icon={<Bell className="w-5 h-5" />} label="Notificações" active={currentView === 'notifications'} onClick={() => setCurrentView('notifications')} badge={unreadNotifications > 0 ? unreadNotifications : undefined} />
           )}
-          <NavItem icon={<UserCircle className="w-5 h-5" />} label="Minha Conta" active={currentView === 'account'} onClick={() => setCurrentView('account')} />
         </nav>
 
         <div className="p-4 border-t border-white/20 dark:border-gray-800/50">
@@ -1018,7 +1017,6 @@ function AppContent({
                 {permissions.views.includes('reports') && <NavItem icon={<BarChart3 className="w-5 h-5" />} label="Relatórios" active={currentView === 'reports'} onClick={() => { setCurrentView('reports'); setSidebarOpen(false); }} />}
                 {permissions.views.includes('team') && <NavItem icon={<Users className="w-5 h-5" />} label="Equipe" active={currentView === 'team'} onClick={() => { setCurrentView('team'); setSidebarOpen(false); }} />}
                 {permissions.views.includes('notifications') && <NavItem icon={<Bell className="w-5 h-5" />} label="Notificações" active={currentView === 'notifications'} onClick={() => { setCurrentView('notifications'); setSidebarOpen(false); }} badge={unreadNotifications > 0 ? unreadNotifications : undefined} />}
-                <NavItem icon={<UserCircle className="w-5 h-5" />} label="Minha Conta" active={currentView === 'account'} onClick={() => { setCurrentView('account'); setSidebarOpen(false); }} />
               </nav>
               
               <div className="p-4 border-t border-gray-100">
