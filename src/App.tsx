@@ -1200,7 +1200,7 @@ function AppContent({
                         <p className="text-xs text-gray-500 truncate">{currentUser.email || 'usuario@skyflow.com'}</p>
                       </div>
                       <button 
-                        onClick={() => { setIsUserMenuOpen(false); setIsUserSettingsOpen(true); }}
+                        onClick={() => { setIsUserMenuOpen(false); setCurrentView('account'); }}
                         className="w-full px-4 py-3 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors"
                       >
                         <Settings className="w-4 h-4 text-gray-400 dark:text-gray-500" /> Minha Conta
