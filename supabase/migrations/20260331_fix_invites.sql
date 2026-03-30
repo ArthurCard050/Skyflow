@@ -12,10 +12,20 @@ CREATE POLICY "profiles_select" ON profiles FOR SELECT TO authenticated
     OR id IN (SELECT owner_id FROM team_members WHERE member_id = auth.uid())
   );
 
--- 2. Permitir que apenas o próprio usuário (ou a sessão temporária de criação) insira seu perfil
+-- 2. Permitir que Administradores ou os próprios membros insiram/atualizem seus perfis
 DROP POLICY IF EXISTS "profiles_insert" ON profiles;
 CREATE POLICY "profiles_insert" ON profiles FOR INSERT TO authenticated
-  WITH CHECK (id = auth.uid());
+  WITH CHECK (
+    id = auth.uid() OR 
+    (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
+  );
+
+DROP POLICY IF EXISTS "profiles_update" ON profiles;
+CREATE POLICY "profiles_update" ON profiles FOR UPDATE TO authenticated
+  USING (
+    id = auth.uid() OR 
+    (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
+  );
 
 -- 3. Função segura (bypassa o RLS) para ligar um usuário que já existe na plataforma à sua agência
 CREATE OR REPLACE FUNCTION link_existing_user_to_team(

@@ -201,8 +201,8 @@ export const dbService = {
       const profileId = signUpData?.user?.id;
       if (!profileId) return { success: false, error: 'Não foi possível recuperar a ID do novo membro.' };
 
-      // 2. Upsert profile usando o authClient recém autenticado (como o novo membro)
-      const { error: profileError } = await authClient.from('profiles').upsert({
+      // 2. Upsert profile usando a conexão principal (como Admin, que agora tem permissão no RLS)
+      const { error: profileError } = await supabase.from('profiles').upsert({
         id: profileId,
         name: memberName,
         email: memberEmail,
