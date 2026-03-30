@@ -67,11 +67,6 @@ export function NewPostModal({ isOpen, onClose, onSave, clients, batches = [], s
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (media.length === 0) {
-      addToast('Por favor, adicione pelo menos uma mídia.', 'error');
-      return;
-    }
 
     if (!caption.trim()) {
       addToast('Por favor, escreva uma legenda.', 'error');

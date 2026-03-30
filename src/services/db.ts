@@ -99,14 +99,21 @@ export const dbService = {
 
   // Mutations
   async upsertClient(client: Partial<Client>) {
-    const payload = {
-      ...(client.id ? { id: client.id } : {}),
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let validId = client.id;
+    if (validId && !isUUID.test(validId)) validId = undefined;
+
+    const payload: any = {
+      ...(validId ? { id: validId } : {}),
       name: client.name,
       avatar: client.avatar,
       email: client.email,
       phone: client.phone,
       notes: client.notes
     };
+    
+    Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+
     const { data, error } = await supabase.from('clients').upsert(payload).select().single();
     if (error) throw error;
     return mapClient(data);
