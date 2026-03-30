@@ -163,8 +163,17 @@ export const dbService = {
     clientId?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // 1. Create auth user
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      // Usar um cliente alternativo para não deslogar o admin na sessão principal do browser
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const authClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
+
+      // 1. Criar auth user
+      const { data: signUpData, error: signUpError } = await authClient.auth.signUp({
         email: memberEmail,
         password: memberPassword,
         options: {
@@ -173,32 +182,36 @@ export const dbService = {
       });
 
       if (signUpError) {
-        // User might already exist — try fetching profile
-        if (!signUpError.message.includes('already registered')) {
-          return { success: false, error: signUpError.message };
+        // Se usuário já existe, tentamos conectá-lo à nossa agência via RPC
+        if (signUpError.message.includes('already registered')) {
+          const { data: linked, error: linkError } = await supabase.rpc('link_existing_user_to_team', {
+            p_email: memberEmail,
+            p_owner_id: ownerId,
+            p_role: role,
+            p_client_id: clientId || null
+          });
+          
+          if (linkError) return { success: false, error: linkError.message };
+          if (!linked) return { success: false, error: 'O usuário já existe mas não pôde ser vinculado. Verifique o email.' };
+          return { success: true };
         }
+        return { success: false, error: signUpError.message };
       }
 
-      let profileId = signUpData?.user?.id;
+      const profileId = signUpData?.user?.id;
+      if (!profileId) return { success: false, error: 'Não foi possível recuperar a ID do novo membro.' };
 
-      // 2. Upsert profile
-      if (profileId) {
-        await supabase.from('profiles').upsert({
-          id: profileId,
-          name: memberName,
-          email: memberEmail,
-          role,
-          avatar: memberName.substring(0, 2).toUpperCase(),
-        });
-      } else {
-        // Fetch existing profile
-        const { data: existing } = await supabase
-          .from('profiles').select('id').eq('email', memberEmail).single();
-        if (!existing) return { success: false, error: 'Não foi possível criar ou encontrar o usuário.' };
-        profileId = existing.id;
-      }
+      // 2. Upsert profile usando o authClient recém autenticado (como o novo membro)
+      const { error: profileError } = await authClient.from('profiles').upsert({
+        id: profileId,
+        name: memberName,
+        email: memberEmail,
+        role,
+        avatar: memberName.substring(0, 2).toUpperCase(),
+      });
+      if (profileError) throw profileError;
 
-      // 3. Create team_member record
+      // 3. Create team_member record usando a conexão principal (como Admin)
       const { error: tmError } = await supabase.from('team_members').insert({
         owner_id: ownerId,
         member_id: profileId,
@@ -209,7 +222,7 @@ export const dbService = {
       if (tmError) return { success: false, error: tmError.message };
       return { success: true };
     } catch (e: any) {
-      return { success: false, error: e.message };
+      return { success: false, error: e.message || 'Erro ao convidar membro' };
     }
   },
 
