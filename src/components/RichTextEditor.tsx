@@ -61,6 +61,8 @@ export function RichTextEditor({
   placeholder = 'Escreva o briefing aqui...',
   onImageUpload,
 }: RichTextEditorProps) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = React.useState(false);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
@@ -90,20 +92,24 @@ export function RichTextEditor({
       if (url) editor?.chain().focus().setImage({ src: url }).run();
       return;
     }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      try {
-        const url = await onImageUpload(file);
-        editor?.chain().focus().setImage({ src: url }).run();
-      } catch (e) {
-        console.error('Image upload failed:', e);
-      }
-    };
-    input.click();
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onImageUpload) return;
+    
+    setIsUploadingImage(true);
+    try {
+      const url = await onImageUpload(file);
+      editor?.chain().focus().setImage({ src: url }).run();
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      alert('Erro ao fazer upload da imagem.');
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleLink = () => {
@@ -185,8 +191,8 @@ export function RichTextEditor({
           <ToolbarButton onClick={handleLink} active={editor.isActive('link')} title="Inserir link">
             <Link2 className="w-4 h-4" />
           </ToolbarButton>
-          <ToolbarButton onClick={handleImageInsert} title="Inserir imagem">
-            <ImageIcon className="w-4 h-4" />
+          <ToolbarButton onClick={handleImageInsert} disabled={isUploadingImage} title={isUploadingImage ? "Enviando imagem..." : "Inserir imagem"}>
+            <ImageIcon className={cn("w-4 h-4", isUploadingImage && "animate-pulse text-sky-500")} />
           </ToolbarButton>
 
           <Divider />
@@ -212,6 +218,15 @@ export function RichTextEditor({
           !editable && 'text-gray-700 dark:text-gray-300',
           editable && 'min-h-[300px]'
         )}
+      />
+      
+      {/* Hidden file input for images */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        className="hidden"
       />
     </div>
   );
