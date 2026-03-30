@@ -113,8 +113,22 @@ export const dbService = {
   },
 
   async upsertPost(post: Partial<Post>) {
-    const payload = {
-      ...(post.id ? { id: post.id } : {}),
+    // Garantir UUID válido caso o frontend gere um ID curto
+    // Como id no Post pode ser curto, caso seja no formato curto, convertemos ou assumimos que o supabase cuida se for texto (que não é, é UUID). 
+    // Na verdade nosso banco espera UUID! O Frontend ('Math.random().toString(36)...') gera string curta!
+    // Para simplificar, deixamos o Supabase gerar se for undefined, mas precisamos do ID para os post_media.
+    // O mais seguro é mandar o Supabase gerar omitindo o ID (se não for UUID válido), mas o React precisa dele.
+    
+    // UUID v4 format regex
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let validId = post.id;
+    if (validId && !isUUID.test(validId)) {
+       // Se o ID for o antigo (curto), deletamos de partial ID para o DB auto-gerar UUID
+       validId = undefined; 
+    }
+
+    const payload: any = {
+      ...(validId ? { id: validId } : {}),
       client_id: post.clientId,
       batch_id: post.batchId,
       caption: post.caption,
@@ -134,11 +148,32 @@ export const dbService = {
     };
     
     // Cleanup undefined keys
-    Object.keys(payload).forEach(key => payload[key as keyof typeof payload] === undefined && delete payload[key as keyof typeof payload]);
+    Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
 
-    const { data, error } = await supabase.from('posts').upsert(payload).select().single();
+    // Upsert the main Post row
+    const { data: postData, error } = await supabase.from('posts').upsert(payload).select().single();
     if (error) throw error;
-    return data;
+    
+    // Synchronize the associated Media Array into post_media Table
+    if (postData && post.media) {
+      // Remove all old media
+      await supabase.from('post_media').delete().eq('post_id', postData.id);
+      
+      if (post.media.length > 0) {
+        const mediaPayload = post.media.map((m, index) => ({
+          post_id: postData.id,
+          url: m.url,
+          type: m.type,
+          format: m.format,
+          sort_order: index
+        }));
+        
+        const { error: mediaErr } = await supabase.from('post_media').insert(mediaPayload);
+        if (mediaErr) console.error('Erro ao salvar media array:', mediaErr);
+      }
+    }
+    
+    return postData;
   },
 
   async updatePostStatus(postId: string, status: string, approvedAt?: string) {
