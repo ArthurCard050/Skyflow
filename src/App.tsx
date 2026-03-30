@@ -207,10 +207,10 @@ function AppContent({
     dbService.upsertClient({ name, email, avatar: newClient.avatar }).then(realClient => {
       setClients(prev => prev.map(c => c.id === optimisticId ? realClient : c));
       setSelectedClientId(realClient.id);
-      addToast(`Cliente ${name} sincronizado com sucesso no banco!`, 'success');
+      addToast(`Cliente ${name} salvo no banco!`, 'success');
     }).catch(err => {
       console.error(err);
-      addToast('Erro ao salvar cliente no banco.', 'error');
+      addToast(`Erro: ${err.message || err.code || 'Falha Desconhecida'}`, 'error');
     });
   };
 
@@ -446,7 +446,10 @@ function AppContent({
         addToast('Novo post adicionado ao feed.', 'success');
       }
     }
-    dbService.upsertPost(savedPost).catch(console.error);
+    dbService.upsertPost(savedPost).catch(err => {
+      console.error(err);
+      addToast(`Erro DB: ${err.message || 'Falha ao salvar post'}`, 'error');
+    });
     setIsNewPostModalOpen(false);
   };
 
@@ -1342,6 +1345,12 @@ function AppContent({
         onClose={() => setIsAIImportModalOpen(false)}
         onImport={(importedPosts) => {
           setPosts(prev => [...importedPosts, ...prev]);
+          importedPosts.forEach(post => {
+            dbService.upsertPost(post).catch(err => {
+              console.error('Failed to save AI post:', err);
+              addToast(`Erro ao salvar post AI: ${err.message}`, 'error');
+            });
+          });
         }}
         clientId={selectedClientId}
         currentUser={currentUser.name}
@@ -1375,24 +1384,61 @@ function AppContent({
         onSave={(clientData) => {
           if (editingClient) {
             setClients(clients.map(c => c.id === editingClient.id ? { ...c, ...clientData } as Client : c));
+            
+            // Sync edit to DB
+            dbService.upsertClient({ id: editingClient.id, ...clientData }).then(realClient => {
+              setClients(prev => prev.map(c => c.id === editingClient.id ? realClient : c));
+              addToast('Cliente atualizado!', 'success');
+            }).catch(err => {
+              console.error(err);
+              addToast(`Erro: ${err.message || 'Falha Desconhecida'}`, 'error');
+            });
+
           } else {
+            if (clients.length >= 20) {
+              addToast('Limite de 20 clientes.', 'error');
+              return;
+            }
+
+            const optimisticId = Math.random().toString(36).substr(2, 9);
             const newClient: Client = {
-              id: Math.random().toString(36).substr(2, 9),
+              id: optimisticId,
               avatar: clientData.name.substring(0, 2).toUpperCase(),
               ...clientData,
             } as Client;
+            
             setClients([...clients, newClient]);
             setSelectedClientId(newClient.id);
+            addToast(`Salvando ${clientData.name}...`, 'info');
+
+            // Sync creation to DB, omitting optimistic ID so Postgres auto-generates UUID
+            dbService.upsertClient({ ...clientData, avatar: newClient.avatar }).then(realClient => {
+              setClients(prev => prev.map(c => c.id === optimisticId ? realClient : c));
+              setSelectedClientId(realClient.id);
+              addToast('Cliente salvo no banco!', 'success');
+            }).catch(err => {
+              console.error(err);
+              addToast(`Erro: ${err.message || 'Falha Desconhecida'}`, 'error');
+            });
           }
           setIsNewClientModalOpen(false);
         }}
         onDelete={(id) => {
           const filtered = clients.filter(c => c.id !== id);
           setClients(filtered);
-          if (selectedClientId === id && filtered.length > 0) {
-            setSelectedClientId(filtered[0].id);
+          if (selectedClientId === id) {
+            setSelectedClientId(filtered.length > 0 ? filtered[0].id : '');
           }
           setIsNewClientModalOpen(false);
+          
+          dbService.deleteClient(id).then(() => {
+            addToast('Cliente excluído.', 'success');
+          }).catch(err => {
+            console.error(err);
+            addToast(`Erro ao excluir: ${err.message}`, 'error');
+            // Revert on fail
+            setClients(clients);
+          });
         }}
       />
 
