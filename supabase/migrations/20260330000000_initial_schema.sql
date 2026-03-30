@@ -100,10 +100,10 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 -- Create minimal RLS Policies (For now, allowing authenticated users full access to their agency)
 -- Note: In a real multi-tenant scenario, we would filter by agency_id or role.
 
-CREATE POLICY "Allow authenticated full access to profiles" ON public.profiles FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to clients" ON public.clients FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to batches" ON public.batches FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to posts" ON public.posts FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to post_media" ON public.post_media FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to post_history" ON public.post_history FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to notifications" ON public.notifications FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow authenticated full access to profiles" ON public.profiles FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to clients" ON public.clients FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to batches" ON public.batches FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to posts" ON public.posts FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to post_media" ON public.post_media FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to post_history" ON public.post_history FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to notifications" ON public.notifications FOR ALL TO authenticated USING (true) WITH CHECK (true);
