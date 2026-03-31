@@ -84,7 +84,7 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({ post, onClick, isDragDis
       {/* Image & Platform Badge */}
       <div className="relative aspect-video rounded-lg overflow-hidden mb-3 bg-gray-100 dark:bg-gray-900">
         <img 
-          src={post.imageUrl} 
+          src={post.media?.[0]?.url || ''} 
           alt="Post preview" 
           className={cn(
             "w-full h-full object-cover transition-transform duration-500 group-hover:scale-105",
@@ -92,8 +92,15 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({ post, onClick, isDragDis
           )}
           referrerPolicy="no-referrer"
         />
-        <div className="absolute top-2 left-2 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-medium shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-1">
-          {post.platform}
+        <div className="absolute top-2 left-2 flex gap-1 items-center z-10 w-[calc(100%-24px)] flex-wrap">
+          <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-medium shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-1">
+            {post.platform}
+          </div>
+          {post.format && (
+            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-medium shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-1 text-sky-600 dark:text-sky-400">
+              {post.format}
+            </div>
+          )}
         </div>
       </div>
 

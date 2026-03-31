@@ -24,6 +24,14 @@ function mapBatch(row: any): Batch {
 }
 
 function mapPost(row: any): Post {
+  const legacyFormatMap: Record<string, string> = {
+    'square': 'Imagem',
+    'portrait': 'Imagem',
+    'landscape': 'Vídeo',
+    'story': 'Story'
+  };
+  const postFormat = row.format && legacyFormatMap[row.format] ? legacyFormatMap[row.format] : row.format;
+
   return {
     id: row.id,
     clientId: row.client_id,
@@ -34,7 +42,7 @@ function mapPost(row: any): Post {
     feedback: row.feedback,
     date: row.date,
     platform: row.platform,
-    format: row.format,
+    format: postFormat,
     title: row.title,
     contentPillar: row.content_pillar,
     visualDirection: row.visual_direction,

@@ -87,9 +87,16 @@ export const PostCard: React.FC<PostCardProps> = ({
             onExpand={() => onImageClick(post.media?.[0]?.url || '')}
             expandable={true}
           />
-          <div className="absolute top-3 left-3 bg-white/95 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-sm text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700 pointer-events-none z-10">
-            <PlatformIcon className="w-3.5 h-3.5" />
-            {post.platform}
+          <div className="absolute top-3 left-3 flex gap-1.5 pointer-events-none z-10 flex-wrap w-[calc(100%-24px)]">
+            <div className="bg-white/95 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-sm text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-gray-700">
+              <PlatformIcon className="w-3.5 h-3.5" />
+              {post.platform}
+            </div>
+            {post.format && (
+              <div className="bg-white/95 dark:bg-gray-900/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-800 flex items-center gap-1.5">
+                {post.format}
+              </div>
+            )}
           </div>
         </div>
 

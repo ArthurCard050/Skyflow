@@ -104,7 +104,7 @@ export function CalendarView({ posts, onPostClick, onDayClick }: CalendarViewPro
                       post.status.includes('changes') && "bg-orange-500",
                       post.status === 'published' && "bg-blue-500"
                     )} />
-                    {post.platform}
+                    {post.platform}{post.format && <span className="text-[9px] opacity-75 font-normal ml-0.5">&bull; {post.format}</span>}
                   </button>
                 ))}
               </div>

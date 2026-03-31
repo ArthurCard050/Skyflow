@@ -65,7 +65,9 @@ function AppContent({
   const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
   
   type Theme = 'default' | 'dark' | 'light';
-  const [theme, setTheme] = useState<Theme>('default');
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem('skyflow_theme') as Theme) || 'default';
+  });
 
   React.useEffect(() => {
     async function loadData() {
@@ -100,6 +102,7 @@ function AppContent({
     // @custom-variant dark in index.css handles all dark: Tailwind classes
     // via [data-theme="dark"] — no classList toggling needed
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('skyflow_theme', theme);
   }, [theme]);
 
   const cycleTheme = () => {
@@ -137,7 +140,30 @@ function AppContent({
 
   // Check URL params on mount - Removed as it's handled in App component now
   
+  const notifyUser = (post: Post, type: Notification['type'], message: string) => {
+    const newNotif: Notification = {
+      id: Math.random().toString(36).substr(2, 9),
+      clientId: post.clientId,
+      postId: post.id,
+      type,
+      message,
+      date: new Date().toISOString(),
+      read: false
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+    dbService.createNotification({
+      clientId: post.clientId,
+      postId: post.id,
+      type,
+      message,
+      date: newNotif.date,
+      read: false,
+      ownerId
+    }).catch(console.error);
+  };
+
   const handleAddComment = (id: string, comment: string) => {
+    const pst = posts.find(p => p.id === id);
     setPosts(posts.map(post => 
       post.id === id ? { 
         ...post, 
@@ -156,6 +182,9 @@ function AppContent({
     ));
     addToast('Comentário adicionado!', 'success');
     dbService.addHistory(id, 'comment', currentUser.id, comment).catch(console.error);
+    if (pst) {
+      notifyUser(pst, 'mention', `${currentUser.name} comentou no post de ${pst.platform}`);
+    }
   };
 
   const handleStatusChange = (postId: string, newStatus: PostStatus) => {
@@ -178,6 +207,10 @@ function AppContent({
     addToast('Status atualizado com sucesso!', 'success');
     dbService.updatePostStatus(postId, newStatus).catch(console.error);
     dbService.addHistory(postId, 'status_change', currentUser.id, `Moveu para ${newStatus.replace('_', ' ')}`).catch(console.error);
+    const pst = posts.find(p => p.id === postId);
+    if (pst && (newStatus === 'copy_sent' || newStatus === 'design_sent')) {
+      notifyUser(pst, 'status_change', `Novo post pronto para sua aprovação (${pst.platform})`);
+    }
   };
 
   const currentClient: Client = clients.find(c => c.id === selectedClientId) || clients[0] || { id: 'empty', name: 'Sem Cliente', avatar: '?', email: '' };
@@ -253,16 +286,7 @@ function AppContent({
     if (userRole === 'client') {
       const post = posts.find(p => p.id === id);
       if (post) {
-        const newNotification: Notification = {
-          id: Math.random().toString(36).substr(2, 9),
-          clientId: post.clientId,
-          postId: post.id,
-          type: 'approved',
-          message: `O post de ${post.platform} foi aprovado com ${rating} estrelas!`,
-          date: new Date().toISOString(),
-          read: false
-        };
-        setNotifications([newNotification, ...notifications]);
+        notifyUser(post, 'approved', `O post de ${post.platform} foi aprovado com ${rating} estrelas!`);
       }
     }
     
@@ -318,16 +342,7 @@ function AppContent({
     if (userRole === 'client') {
       const post = posts.find(p => p.id === id);
       if (post) {
-        const newNotification: Notification = {
-          id: Math.random().toString(36).substr(2, 9),
-          clientId: post.clientId,
-          postId: post.id,
-          type: 'changes_requested',
-          message: `Solicitação de ajuste: "${feedback}"`,
-          date: new Date().toISOString(),
-          read: false
-        };
-        setNotifications([newNotification, ...notifications]);
+        notifyUser(post, 'changes_requested', `Solicitação de ajuste: "${feedback}"`);
       }
     }
 

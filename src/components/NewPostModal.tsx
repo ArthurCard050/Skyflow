@@ -35,6 +35,7 @@ export function NewPostModal({ isOpen, onClose, onSave, onDelete, clients, batch
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [contentType, setContentType] = useState('Imagem');
   const [postFormat, setPostFormat] = useState<MediaFormat>('square');
 
   useEffect(() => {
@@ -51,6 +52,7 @@ export function NewPostModal({ isOpen, onClose, onSave, onDelete, clients, batch
         setVideoScript(post.videoScript || '');
         setCta(post.cta || '');
         setMedia(post.media || []);
+        setContentType(post.format || 'Imagem');
         setPostFormat(post.media?.[0]?.format || 'square');
       } else {
         setClientId(selectedClientId);
@@ -60,6 +62,7 @@ export function NewPostModal({ isOpen, onClose, onSave, onDelete, clients, batch
         setVisualDirection('');
         setVideoScript('');
         setCta('');
+        setContentType('Imagem');
         resetForm();
         if (defaultDate) setDate(defaultDate);
       }
@@ -79,6 +82,7 @@ export function NewPostModal({ isOpen, onClose, onSave, onDelete, clients, batch
       clientId,
       batchId: batchId || undefined,
       platform,
+      format: contentType,
       date,
       caption,
       contentPillar: contentPillar.trim() || undefined,
@@ -120,6 +124,7 @@ export function NewPostModal({ isOpen, onClose, onSave, onDelete, clients, batch
     setDate(defaultDate || new Date().toISOString().split('T')[0]);
     setPlatform('Instagram');
     setBatchId('');
+    setContentType('Imagem');
     setPostFormat('square');
   };
 
@@ -359,23 +364,21 @@ export function NewPostModal({ isOpen, onClose, onSave, onDelete, clients, batch
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Formato (Tag)</label>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Tipo do Conteúdo</label>
                           <select
-                            value={postFormat}
-                            onChange={(e) => {
-                              const newFormat = e.target.value as MediaFormat;
-                              setPostFormat(newFormat);
-                              setMedia(prev => prev.map(m => ({ ...m, format: newFormat })));
-                            }}
+                            value={contentType}
+                            onChange={(e) => setContentType(e.target.value)}
                             className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all text-sm dark:text-white"
                           >
-                            <option value="square">Feed Quadrado (1:1)</option>
-                            <option value="portrait">Feed Retrato (4:5)</option>
-                            <option value="story">Story / Reels (9:16)</option>
-                            <option value="landscape">Paisagem (16:9)</option>
+                            <option value="Imagem">Imagem</option>
+                            <option value="Carrossel">Carrossel</option>
+                            <option value="Reels">Reels</option>
+                            <option value="Story">Story</option>
+                            <option value="Vídeo">Vídeo Longo</option>
+                            <option value="Texto">Texto / Artigo</option>
                           </select>
                         </div>
-                        <div>
+                        <div className="col-span-2">
                           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Data</label>
                           <div className="relative">
                             <input

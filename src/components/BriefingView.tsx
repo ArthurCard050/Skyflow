@@ -225,22 +225,29 @@ export function BriefingView({ selectedClientId, clients }: BriefingViewProps) {
           <>
             {/* Title bar */}
             <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setSelectedBriefing(null)}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors shrink-0"
+                title="Fechar briefing"
+              >
+                <X className="w-5 h-5" />
+              </button>
               {canEdit ? (
                 <input
                   type="text"
                   value={editTitle}
                   onChange={e => { setEditTitle(e.target.value); setIsDirty(true); }}
-                  className="flex-1 text-2xl font-bold bg-transparent border-b-2 border-transparent focus:border-sky-400 outline-none text-gray-900 dark:text-white transition-colors py-1"
+                  className="flex-1 min-w-0 text-2xl font-bold bg-transparent border-b-2 border-transparent focus:border-sky-400 outline-none text-gray-900 dark:text-white transition-colors py-1 truncate"
                   placeholder="Título do briefing..."
                 />
               ) : (
-                <h3 className="flex-1 text-2xl font-bold text-gray-900 dark:text-white">{selectedBriefing.title}</h3>
+                <h3 className="flex-1 min-w-0 text-2xl font-bold text-gray-900 dark:text-white truncate">{selectedBriefing.title}</h3>
               )}
               {canEdit && (
                 <button
                   onClick={handleSave}
                   disabled={isSaving || !isDirty}
-                  className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-xl transition-colors shadow-md disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-xl transition-colors shadow-md disabled:opacity-50 shrink-0"
                 >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Salvar
@@ -249,8 +256,9 @@ export function BriefingView({ selectedClientId, clients }: BriefingViewProps) {
             </div>
 
             {/* Editor */}
-            <div className="flex-1 overflow-y-auto rounded-xl">
+            <div className="flex-1 min-h-0">
               <RichTextEditor
+                key={selectedBriefing.id}
                 content={selectedBriefing.content}
                 editable={canEdit}
                 onChange={json => { contentRef.current = json; setIsDirty(true); }}

@@ -63,16 +63,18 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isUploadingImage, setIsUploadingImage] = React.useState(false);
+  const extensions = React.useMemo(() => [
+    StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+    Underline,
+    Highlight.configure({ multicolor: false }),
+    Link.configure({ openOnClick: false, HTMLAttributes: { class: 'text-sky-600 underline' } }),
+    Image.configure({ HTMLAttributes: { class: 'max-w-full rounded-lg my-2' } }),
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    Placeholder.configure({ placeholder }),
+  ], [placeholder]);
+
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-      Underline,
-      Highlight.configure({ multicolor: false }),
-      Link.configure({ openOnClick: false, HTMLAttributes: { class: 'text-sky-600 underline' } }),
-      Image.configure({ HTMLAttributes: { class: 'max-w-full rounded-lg my-2' } }),
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Placeholder.configure({ placeholder }),
-    ],
+    extensions,
     content: Object.keys(content || {}).length > 0 ? content : undefined,
     editable,
     onUpdate: ({ editor }) => {
@@ -124,10 +126,10 @@ export function RichTextEditor({
   if (!editor) return null;
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-900">
+    <div className="flex flex-col h-full border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-900">
       {/* Toolbar */}
       {editable && (
-        <div className="flex flex-wrap items-center gap-0.5 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+        <div className="flex-shrink-0 flex flex-wrap items-center gap-0.5 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
           <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Negrito (Ctrl+B)">
             <Bold className="w-4 h-4" />
           </ToolbarButton>
@@ -210,13 +212,13 @@ export function RichTextEditor({
       <EditorContent
         editor={editor}
         className={cn(
-          'prose prose-sm dark:prose-invert max-w-none px-5 py-4',
+          'flex-1 overflow-y-auto custom-scrollbar prose prose-sm dark:prose-invert max-w-none px-5 py-4',
           'prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg',
           'prose-blockquote:border-l-sky-500 prose-blockquote:bg-sky-50/50 dark:prose-blockquote:bg-sky-900/10 prose-blockquote:rounded-r-lg prose-blockquote:py-0.5',
           'prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:rounded prose-code:px-1.5 prose-code:py-0.5',
           'focus:outline-none',
           !editable && 'text-gray-700 dark:text-gray-300',
-          editable && 'min-h-[300px]'
+          editable && 'min-h-[150px]'
         )}
       />
       

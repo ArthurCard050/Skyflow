@@ -84,7 +84,7 @@ export interface Post {
   feedback?: string;
   date: string;
   platform: 'Instagram' | 'LinkedIn' | 'Facebook';
-  format?: MediaFormat;
+  format?: string;
   title?: string;
   contentPillar?: string;
   visualDirection?: string;

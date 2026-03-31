@@ -348,6 +348,10 @@ export function PostDetailModal({
                         <p className="text-lg font-bold text-gray-900 dark:text-white">{post.platform}</p>
                       </div>
                       <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Formato</span>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{post.format || 'Não definido'}</p>
+                      </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                         <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Agendado para</span>
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
                           {format(new Date(post.date), "dd 'de' MMMM, yyyy", { locale: ptBR })}
